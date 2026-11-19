@@ -1,17 +1,22 @@
 "use client";
-// The canvas player: draws the engine's world for a lesson at time t and keeps it in step with the
-// browser's own voice (the speech clock, docs/methodology/05 §3). Scene spans are estimated; when
-// the voice is slower the clock holds just before the scene ends until the voice finishes, and when
-// the voice is faster the clock catches up at double speed.
+// The canvas player: draws the engine's world for a lesson at time t, in step with the narration.
+// Default voice: a Microsoft Edge neural voice (as in our courses), fetched per scene with Microsoft's
+// word timings. While a clip plays the clock IS the audio (t = speechStart + currentTime / speed), so
+// highlights land on the spoken word. Without a clip (voice service down, or "Browser voice"), the
+// browser's own speech is used with estimated spans: the clock holds before a scene ends until the
+// voice finishes, and catches up at double speed if the voice finished early.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CastMember, Lesson } from "@/lib/types";
-import { captionAt, timeLesson, type TimedLesson } from "@/lib/timing";
+import { captionAt, timeLesson, type TimedLesson, type VoiceClip } from "@/lib/timing";
+import { EDGE_VOICES, useEdgeVoice } from "@/lib/useEdgeVoice";
 import styles from "./CanvasPlayer.module.css";
 
 type Engine = typeof import("@/engine/browser");
 
 const HOLD_BEFORE_END = 0.35;
 const MAX_HOLD = 9;
+const BROWSER = "browser";
+const SILENT = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
 
 function rankVoice(v: SpeechSynthesisVoice): number {
   const n = v.name;
@@ -44,20 +49,33 @@ export default function CanvasPlayer({ lesson, cast, autoPlay = false, onEnd, on
   const [speed, setSpeed] = useState(1);
   const [voiceOn, setVoiceOn] = useState(true);
   const [captions, setCaptions] = useState(true);
-  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
-  const [voiceName, setVoiceName] = useState<string>("");
+  const [voiceMode, setVoiceMode] = useState<string>(EDGE_VOICES[0].id);
   const [time, setTime] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  const timed: TimedLesson = useMemo(() => timeLesson(lesson, speed), [lesson, speed]);
+  const { clips: allClips, ready, progress } = useEdgeVoice(lesson, voiceMode === BROWSER ? null : voiceMode);
+  const preparing = !ready;
+  // A scene the clock entered without its clip keeps the browser voice for this play-through, so a late
+  // clip can't re-time a scene that is already playing. Scenes ahead re-time freely as clips arrive.
+  const [noClip, setNoClip] = useState<Record<number, true>>({});
+  const clips = useMemo(() => { const o: Record<number, VoiceClip | undefined> = {}; for (const [i, c] of Object.entries(allClips)) if (!noClip[+i]) o[+i] = c; return o; }, [allClips, noClip]);
+  const timed: TimedLesson = useMemo(() => timeLesson(lesson, speed, clips), [lesson, speed, clips]);
+
   const tRef = useRef(0);
   const playingRef = useRef(false);
+  const lastScene = useRef(-1);
+  const holdSince = useRef<number | null>(null);
+  // Edge audio
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioScene = useRef(-1);
+  const unlocked = useRef(false);
+  const clipsRef = useRef<Record<number, VoiceClip | undefined> | null>(null);
+  clipsRef.current = clips;
+  // Browser speech fallback
   const spokenScene = useRef(-1);
   const speechDone = useRef<Record<number, boolean>>({});
   const speechStarted = useRef<Record<number, boolean>>({});
   const speakAt = useRef(0);
-  const holdSince = useRef<number | null>(null);
-  const lastScene = useRef(-1);
   const voiceRef = useRef<SpeechSynthesisVoice | null>(null);
   const freezeRef = useRef<number | null>(freezeAt);
   freezeRef.current = freezeAt;
@@ -70,7 +88,6 @@ export default function CanvasPlayer({ lesson, cast, autoPlay = false, onEnd, on
     return 0;
   }, [timed]);
 
-  // Load the engine and fonts once.
   useEffect(() => {
     let alive = true;
     import("@/engine/browser").then(async (m) => {
@@ -79,22 +96,24 @@ export default function CanvasPlayer({ lesson, cast, autoPlay = false, onEnd, on
       engineRef.current = m;
       setLoaded(true);
     }).catch((e) => setError(String(e?.message || e)));
-    return () => { alive = false; };
+    try { const v = localStorage.getItem("cr:voice"); if (v) setVoiceMode(v); } catch { /* storage blocked */ }
+    audioRef.current = new Audio();
+    return () => { alive = false; audioRef.current?.pause(); };
   }, []);
 
-  // Voices load asynchronously in every browser.
+  // The best browser voice, for the fallback.
   useEffect(() => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) { setVoiceOn(false); return; }
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
     const pick = () => {
       const list = window.speechSynthesis.getVoices().filter((v) => rankVoice(v) >= 0).sort((a, b) => rankVoice(b) - rankVoice(a));
-      setVoices(list);
-      if (list.length && !voiceRef.current) { voiceRef.current = list[0]; setVoiceName(list[0].name); }
+      if (list.length) voiceRef.current = list[0];
     };
     pick();
     window.speechSynthesis.addEventListener("voiceschanged", pick);
     return () => window.speechSynthesis.removeEventListener("voiceschanged", pick);
   }, []);
-  useEffect(() => { voiceRef.current = voices.find((v) => v.name === voiceName) ?? voiceRef.current; }, [voiceName, voices]);
+
+  useEffect(() => { if (audioRef.current) audioRef.current.muted = !voiceOn; }, [voiceOn]);
 
   const draw = useCallback((t: number) => {
     const c = canvasRef.current, m = engineRef.current;
@@ -105,7 +124,10 @@ export default function CanvasPlayer({ lesson, cast, autoPlay = false, onEnd, on
     catch (e) { console.warn("frame failed", e); }
   }, [lesson, timed, cast]);
 
-  const speak = useCallback((i: number) => {
+  const stopSpeech = () => { if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel(); };
+  const stopAll = () => { stopSpeech(); audioRef.current?.pause(); audioScene.current = -1; spokenScene.current = -1; };
+
+  const speakBrowser = useCallback((i: number) => {
     if (!voiceOnRef.current || typeof window === "undefined" || !("speechSynthesis" in window)) { speechDone.current[i] = true; return; }
     const synth = window.speechSynthesis;
     synth.cancel();
@@ -122,12 +144,10 @@ export default function CanvasPlayer({ lesson, cast, autoPlay = false, onEnd, on
     synth.speak(u);
   }, [timed, speed]);
 
-  const stopVoice = () => { if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel(); };
-
   const seek = useCallback((t: number) => {
-    stopVoice();
+    stopAll();
     tRef.current = Math.max(0, Math.min(t, timed.duration - 0.01));
-    lastScene.current = -1; spokenScene.current = -1; holdSince.current = null;
+    lastScene.current = -1; holdSince.current = null;
     setTime(tRef.current);
     draw(tRef.current);
   }, [timed, draw]);
@@ -140,49 +160,63 @@ export default function CanvasPlayer({ lesson, cast, autoPlay = false, onEnd, on
       const dt = Math.min(0.1, (now - last) / 1000); last = now;
       if (playingRef.current) {
         let t = tRef.current;
-        const k = sceneAt(t), sc = timed.scenes[k];
+        const k = sceneAt(t), sc = timed.scenes[k], clip = clipsRef.current?.[k], a = audioRef.current;
         if (k !== lastScene.current) {
           lastScene.current = k; holdSince.current = null;
           onSceneChange?.(k);
-          if (spokenScene.current !== k) speak(k);
+          if (audioScene.current !== k) { a?.pause(); audioScene.current = -1; }
+          if (!clip && spokenScene.current !== k) { speakBrowser(k); if (voiceMode !== BROWSER) setNoClip((x) => ({ ...x, [k]: true })); }
         }
-        // A voice that never starts (blocked or missing) must not stall the video.
-        if (speechDone.current[k] === false && !speechStarted.current[k] && now - speakAt.current > 2000) speechDone.current[k] = true;
-        const done = speechDone.current[k] !== false;
-        const holdAt = sc.end - HOLD_BEFORE_END;
-        let rate = 1;
-        // The voice finished early: catch up, but only after a voice really spoke this scene.
-        if (done && voiceOnRef.current && speechStarted.current[k] && t < holdAt - 1 && t > sc.speechStart + 1) rate = 2;
-        t += dt * rate;
-        if (!done && t >= holdAt) {
-          holdSince.current ??= now;
-          if ((now - holdSince.current) / 1000 < MAX_HOLD) t = holdAt;
+        if (clip && a) {
+          // Start this scene's clip at the right offset (also after a pause or a seek).
+          if (audioScene.current !== k && t >= sc.speechStart && t < sc.speechEnd - 0.05) {
+            audioScene.current = k;
+            a.src = clip.url; a.playbackRate = speed; a.muted = !voiceOnRef.current;
+            try { a.currentTime = Math.max(0, (t - sc.speechStart) * speed); } catch { /* not seekable yet */ }
+            a.play().catch(() => { /* autoplay blocked: the picture runs on silently */ });
+          }
+          if (audioScene.current === k && !a.paused && !a.ended && a.currentTime > 0) t = sc.speechStart + a.currentTime / speed;
+          else t += dt;
+        } else {
+          if (speechDone.current[k] === false && !speechStarted.current[k] && now - speakAt.current > 2000) speechDone.current[k] = true;
+          const done = speechDone.current[k] !== false, holdAt = sc.end - HOLD_BEFORE_END;
+          let rate = 1;
+          if (done && voiceOnRef.current && speechStarted.current[k] && t < holdAt - 1 && t > sc.speechStart + 1) rate = 2;
+          t += dt * rate;
+          if (!done && t >= holdAt) {
+            holdSince.current ??= now;
+            if ((now - holdSince.current) / 1000 < MAX_HOLD) t = holdAt;
+          }
         }
         if (t >= timed.duration) {
-          t = timed.duration - 0.001; playingRef.current = false; setPlaying(false); stopVoice(); onEnd?.();
+          t = timed.duration - 0.001; playingRef.current = false; setPlaying(false); stopAll(); onEnd?.();
         }
         tRef.current = t;
         setTime(t);
       }
-      // Before the first play, show a poster frame (the opener's title) instead of a blank page.
       const poster = !playingRef.current && tRef.current < 0.05 ? Math.min(3.4, timed.scenes[0].end - 0.6) : null;
       draw(freezeRef.current ?? poster ?? tRef.current);
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [loaded, timed, sceneAt, draw, speak, onEnd, onSceneChange]);
+  }, [loaded, timed, sceneAt, draw, speakBrowser, onEnd, onSceneChange, speed, voiceMode]);
 
   const play = useCallback(() => {
+    if (preparing) return;
     if (tRef.current >= timed.duration - 0.05) seek(0);
+    // Unlock the audio element inside the click (Safari only lets a gesture start playback).
+    const a = audioRef.current;
+    if (a && !unlocked.current) { unlocked.current = true; a.src = SILENT; a.play().then(() => a.pause()).catch(() => {}); }
+    lastScene.current = -1;
     playingRef.current = true; setPlaying(true);
-    if (typeof window !== "undefined" && "speechSynthesis" in window && window.speechSynthesis.paused) window.speechSynthesis.resume();
-  }, [timed, seek]);
+  }, [timed, seek, preparing]);
   const pause = useCallback(() => {
     playingRef.current = false; setPlaying(false);
-    // Pausing restarts the scene's sentence on resume: browsers resume speech unreliably.
-    stopVoice(); spokenScene.current = -1; lastScene.current = -1;
-    const k = sceneAt(tRef.current); tRef.current = timed.scenes[k].start + 0.01; setTime(tRef.current);
+    audioRef.current?.pause(); audioScene.current = -1;
+    // Browser speech can't resume reliably, so a browser-voice scene restarts from its beginning.
+    const k = sceneAt(tRef.current);
+    if (!clipsRef.current?.[k]) { stopSpeech(); spokenScene.current = -1; tRef.current = timed.scenes[k].start + 0.01; setTime(tRef.current); }
   }, [sceneAt, timed]);
   const toggle = useCallback(() => (playingRef.current ? pause() : play()), [play, pause]);
 
@@ -191,17 +225,18 @@ export default function CanvasPlayer({ lesson, cast, autoPlay = false, onEnd, on
     seek(s.start + 0.01);
   }, [timed, seek]);
 
-  useEffect(() => { if (loaded && autoPlay) play(); }, [loaded]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (loaded && autoPlay && !preparing) play(); }, [loaded, preparing]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (seekTo && loaded) { goScene(seekTo.scene); } }, [seekTo, loaded]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (loaded) draw(freezeAt ?? (tRef.current < 0.05 ? Math.min(3.4, timed.scenes[0].end - 0.6) : tRef.current)); }, [loaded, freezeAt, draw, timed]);
-  useEffect(() => () => stopVoice(), []);
-  // Changing the lesson restarts the clock.
-  useEffect(() => { seek(0); playingRef.current = false; setPlaying(false); }, [lesson]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => stopSpeech(), []);
+  // A new lesson, voice or speed re-times everything: restart from the beginning.
+  useEffect(() => { playingRef.current = false; setPlaying(false); setNoClip({}); seek(0); }, [lesson, voiceMode, speed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const k = sceneAt(time), scene = timed.scenes[k];
   const caption = scene ? captionAt(scene, time) : "";
 
   const onKey = (e: React.KeyboardEvent) => {
+    if ((e.target as HTMLElement).tagName === "SELECT") return;
     if (e.key === " " || e.key === "k") { e.preventDefault(); toggle(); }
     else if (e.key === "ArrowRight") { e.preventDefault(); goScene(k + 1); }
     else if (e.key === "ArrowLeft") { e.preventDefault(); goScene(k - 1); }
@@ -209,6 +244,7 @@ export default function CanvasPlayer({ lesson, cast, autoPlay = false, onEnd, on
   };
 
   const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+  const chooseVoice = (v: string) => { setVoiceMode(v); try { localStorage.setItem("cr:voice", v); } catch { /* ignore */ } };
 
   return (
     <div className={styles.player} tabIndex={0} onKeyDown={onKey} aria-label={`Video player: ${lesson.title}`} role="region">
@@ -218,38 +254,39 @@ export default function CanvasPlayer({ lesson, cast, autoPlay = false, onEnd, on
         {!loaded && !error && <div className={styles.overlay}>Loading the animation engine…</div>}
         {error && <div className={styles.overlay}>Could not load the engine: {error}</div>}
         {loaded && !playing && time < 0.05 && (
-          <button className={styles.bigPlay} onClick={play} aria-label="Play">▶ Play</button>
+          <button className={styles.bigPlay} onClick={play} aria-label="Play" disabled={preparing}>
+            {preparing ? `Preparing the voice… ${Math.round(progress * 100)}%` : "▶ Play"}
+          </button>
         )}
         {captions && scene && time > 0.05 && <div className={styles.caption} aria-live="off">{caption}</div>}
       </div>
       <div className={styles.controls}>
-        <button onClick={toggle} className={styles.btn} aria-label={playing ? "Pause" : "Play"}>{playing ? "❚❚ Pause" : "▶ Play"}</button>
+        <button onClick={toggle} className={styles.btn} aria-label={playing ? "Pause" : "Play"} disabled={preparing}>{playing ? "❚❚ Pause" : "▶ Play"}</button>
         <button onClick={() => goScene(k - 1)} className={styles.btn} aria-label="Previous scene">‹ Prev</button>
         <button onClick={() => goScene(k + 1)} className={styles.btn} aria-label="Next scene">Next ›</button>
         <div className={styles.progress} aria-hidden>
           {timed.scenes.map((s, i) => (
-            <button key={s.id} className={styles.seg} style={{ flexGrow: s.end - s.start }} onClick={() => goScene(i)} title={s.headline}>
+            <button key={s.id} className={styles.seg} style={{ flexGrow: s.end - s.start }} onClick={() => goScene(i)} title={s.headline} tabIndex={-1}>
               <span style={{ width: `${Math.max(0, Math.min(1, (time - s.start) / (s.end - s.start))) * 100}%` }} />
             </button>
           ))}
         </div>
         <span className={styles.time}>{fmt(time)} / {fmt(timed.duration)}</span>
         <label className={styles.small}>
+          Voice
+          <select value={voiceMode} onChange={(e) => chooseVoice(e.target.value)}>
+            {EDGE_VOICES.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
+            <option value={BROWSER}>Browser voice</option>
+          </select>
+        </label>
+        <label className={styles.small}>
           Speed
           <select value={speed} onChange={(e) => { setSpeed(Number(e.target.value)); }}>
             <option value={0.9}>0.9×</option><option value={1}>1×</option><option value={1.15}>1.15×</option>
           </select>
         </label>
-        <button onClick={() => { setVoiceOn((v) => !v); stopVoice(); }} className={styles.btn} aria-pressed={voiceOn}>{voiceOn ? "Voice on" : "Voice off"}</button>
+        <button onClick={() => { setVoiceOn((v) => !v); stopSpeech(); }} className={styles.btn} aria-pressed={voiceOn}>{voiceOn ? "Sound on" : "Sound off"}</button>
         <button onClick={() => setCaptions((c) => !c)} className={styles.btn} aria-pressed={captions}>CC</button>
-        {voices.length > 1 && (
-          <label className={styles.small}>
-            Voice
-            <select value={voiceName} onChange={(e) => setVoiceName(e.target.value)}>
-              {voices.slice(0, 12).map((v) => <option key={v.name} value={v.name}>{v.name.replace(/^Microsoft /, "").replace(/ Online \(Natural\).*/, " (Natural)")}</option>)}
-            </select>
-          </label>
-        )}
       </div>
     </div>
   );

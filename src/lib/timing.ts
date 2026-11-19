@@ -10,6 +10,7 @@ const MIN_SPAN: Record<string, number> = {
 
 export interface TimedScene extends Scene {
   start: number; end: number; speechStart: number; speechEnd: number;
+  wordTimings?: { text: string; start: number; end: number; charStart: number; charEnd: number }[];
 }
 export interface TimedLesson extends Omit<Lesson, "scenes"> {
   scenes: TimedScene[];
@@ -18,14 +19,23 @@ export interface TimedLesson extends Omit<Lesson, "scenes"> {
 
 export const wordCount = (s: string) => s.split(/\s+/).filter(Boolean).length;
 
-export function timeLesson(lesson: Lesson, speed = 1): TimedLesson {
+// A measured narration clip for one scene (Edge voice): its length and Microsoft's word boundaries.
+export interface VoiceClip { url: string; duration: number; words: { text: string; start: number; end: number; charStart: number; charEnd: number }[] }
+
+export const SPEECH_LEAD = 0.25;
+
+export function timeLesson(lesson: Lesson, speed = 1, clips?: Record<number, VoiceClip | undefined>): TimedLesson {
   let t = 0;
-  const scenes = lesson.scenes.map((s) => {
-    const speak = wordCount(s.narration) / (WORDS_PER_SECOND * speed);
+  const scenes = lesson.scenes.map((s, i) => {
+    const clip = clips?.[i];
+    // Measured clips set the span exactly; otherwise it is estimated from the word count.
+    const speak = clip ? clip.duration / speed : wordCount(s.narration) / (WORDS_PER_SECOND * speed);
     const extra = s.recipe === "question" ? 3 : 0;
-    const span = Math.max(MIN_SPAN[s.recipe] ?? 4, speak + 0.6) + extra;
+    const span = Math.max(MIN_SPAN[s.recipe] ?? 4, speak + SPEECH_LEAD + 0.5) + extra;
+    const at = t + SPEECH_LEAD;
     const scene: TimedScene = {
-      ...s, start: t, end: t + span, speechStart: t + 0.25, speechEnd: t + 0.25 + speak,
+      ...s, start: t, end: t + span, speechStart: at, speechEnd: at + speak,
+      ...(clip && clip.words.length ? { wordTimings: clip.words.map((w) => ({ ...w, start: at + w.start / speed, end: at + w.end / speed })) } : {}),
     };
     t += span;
     return scene;

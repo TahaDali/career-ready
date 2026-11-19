@@ -26,7 +26,9 @@ earlier projects and other sources may be used if cited. This file lists everyth
 | zod | zod.dev | MIT |
 | cheerio | cheerio.js.org | MIT |
 | schema.org JobPosting vocabulary | schema.org/JobPosting | CC BY-SA 3.0 |
-| Web Speech API (browser voices) | Built into the browser | n/a |
+| Web Speech API (browser voices, fallback) | Built into the browser | n/a |
+| msedge-tts client | github.com/Migushthe2nd/MsEdgeTTS | MIT |
+| Narration voices (Ava, Andrew, Emma, Brian Multilingual Neural; Sonia) | Microsoft Edge Read Aloud speech service, the same voices as our course pipeline | **Permission for public or commercial use NOT verified.** Used for the hackathon prototype only; before any launch, move to licensed Azure AI Speech or keep the browser-voice option |
 | Hosting | Vercel | n/a |
 
 ## AI tools

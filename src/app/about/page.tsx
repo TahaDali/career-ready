@@ -35,6 +35,7 @@ export default function About() {
             <summary>Credits and sources</summary>
             <ul style={{ padding: "4px 0 16px 22px", lineHeight: 1.7 }}>
               <li><a href="https://github.com/TahaDali/Continuous-Learning-Video">Continuous-Learning-Video</a> animation engine and course method (our own open-source project, Apache-2.0), plus engine parts and the course-page design from our earlier Axios AI Fellow course edition.</li>
+              <li>Narration: Microsoft neural voices through the Edge Read Aloud service (msedge-tts client, MIT). Permission for public use is not yet verified; a licensed Azure AI Speech key or the “Browser voice” option replaces it before any launch.</li>
               <li>Fonts: Inter, Instrument Serif and JetBrains Mono (SIL Open Font License).</li>
               <li>Libraries: Next.js (MIT), Anthropic TypeScript SDK (MIT), OpenAI Node SDK (Apache-2.0), zod (MIT), cheerio (MIT). schema.org JobPosting vocabulary.</li>
               <li>Built at BAU Innovate 2026 with Claude Code (Anthropic). The full list is in CREDITS.md in the repository.</li>
