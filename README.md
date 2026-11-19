@@ -46,6 +46,19 @@ The full method (teaching approach, research rules, visual language, scene recip
 spec, quality review) is in [`docs/methodology/`](docs/methodology/), and the prompts the app sends are
 built from those files by `scripts/build-prompts.mjs`.
 
+## Roadmap
+
+Jobs are the first use. The engine underneath is general: **the AI writes a storyboard, our engine draws it**, so the same pipeline can explain anything.
+
+| Stage | What it adds |
+|---|---|
+| **Today** | Any job link → a narrated one-minute video, a job brief, and a 10-lesson course with practice questions |
+| **Next: choose a template** | Pick the look that suits you (for example Editorial, Chalkboard or Bright). Same story, same method, a different visual style |
+| **Then: beyond jobs** | Paste a topic, an article or class materials and get a narrated video and lessons. **Students** turn their class notes into study videos; **teachers** turn lecture slides into lessons with practice |
+| **For institutions** | One institutional key for a career-services or class pilot, licensed voices (Azure AI Speech), cited research beyond the source, and MP4 export with captions |
+
+The method stays the same at every stage: the big picture first, then the details, then the learner in it, with every claim labelled by source.
+
 ## Run it
 
 ```bash
