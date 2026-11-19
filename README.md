@@ -3,6 +3,8 @@
 **Paste a job link and your own AI key. In about a minute, watch a narrated, animated one-minute story
 of the job, read a job brief, and (if you want) build a full 10-lesson course with practice questions.**
 
+**Live:** https://career-ready-sand.vercel.app · **No key? Watch the sample:** https://career-ready-sand.vercel.app/job/sample
+
 Built at **BAU Innovate 2026** (Nov 19). Track: Education & Student Experience.
 
 ## Why
@@ -52,7 +54,7 @@ npm run dev        # http://localhost:3000
 ```
 
 Paste a job link and your Claude (`sk-ant-…`) or OpenAI key in the page. No server keys are needed.
-`/job/sample` plays a built-in sample without any key. Deploy: `npx vercel --prod`.
+`/job/sample` plays a built-in sample without any key. Deployed on Vercel from this repository; every push to `main` redeploys.
 
 ## Built on pre-existing work (cited)
 
