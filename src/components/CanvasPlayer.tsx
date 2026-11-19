@@ -98,6 +98,7 @@ export default function CanvasPlayer({ lesson, cast, autoPlay = false, onEnd, on
     }).catch((e) => setError(String(e?.message || e)));
     try { const v = localStorage.getItem("cr:voice"); if (v) setVoiceMode(v); } catch { /* storage blocked */ }
     audioRef.current = new Audio();
+    (window as unknown as { __crAudio?: HTMLAudioElement }).__crAudio = audioRef.current; // for debugging
     return () => { alive = false; audioRef.current?.pause(); };
   }, []);
 
@@ -156,7 +157,7 @@ export default function CanvasPlayer({ lesson, cast, autoPlay = false, onEnd, on
   useEffect(() => {
     if (!loaded) return;
     let raf = 0, last = performance.now();
-    const tick = (now: number) => {
+    const step = (now: number) => {
       const dt = Math.min(0.1, (now - last) / 1000); last = now;
       if (playingRef.current) {
         let t = tRef.current;
@@ -196,10 +197,12 @@ export default function CanvasPlayer({ lesson, cast, autoPlay = false, onEnd, on
       }
       const poster = !playingRef.current && tRef.current < 0.05 ? Math.min(3.4, timed.scenes[0].end - 0.6) : null;
       draw(freezeRef.current ?? poster ?? tRef.current);
-      raf = requestAnimationFrame(tick);
     };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    const loop = (now: number) => { step(now); raf = requestAnimationFrame(loop); };
+    raf = requestAnimationFrame(loop);
+    // A hidden tab gets no animation frames, but the narration keeps playing: keep the clock moving.
+    const iv = setInterval(() => { if (document.hidden) step(performance.now()); }, 200);
+    return () => { cancelAnimationFrame(raf); clearInterval(iv); };
   }, [loaded, timed, sceneAt, draw, speakBrowser, onEnd, onSceneChange, speed, voiceMode]);
 
   const play = useCallback(() => {
