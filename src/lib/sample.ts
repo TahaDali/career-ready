@@ -30,6 +30,8 @@ export const SAMPLE: StoryResult = {
   cast: [
     { key: "maya", name: "Maya Okoro", role: "Coordinator", skin: "skin4", hair: "hairBlack", style: "puff", top: "cardigan", topColor: "sage", bottom: "charcoal", lower: "trousers", glasses: false },
     { key: "sam", name: "Sam Patel", role: "Patient", skin: "skin2", hair: "hairBrown", style: "short", top: "sweater", topColor: "denim", bottom: "navy", lower: "trousers", glasses: true },
+    { key: "dana", name: "Dana Reyes", role: "Access Supervisor", skin: "skin3", hair: "hairGrey", style: "bob", top: "blazer", topColor: "navy", bottom: "charcoal", lower: "skirt", glasses: true },
+    { key: "omar", name: "Omar Haddad", role: "Billing Specialist", skin: "skin5", hair: "hairBlack", style: "short", top: "shirt", topColor: "slate", bottom: "charcoal", lower: "trousers", glasses: false },
   ],
   story: {
     id: "00", title: "Patient Access Coordinator", part: "Part I · The organization",

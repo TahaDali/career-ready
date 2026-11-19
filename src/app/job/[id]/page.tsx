@@ -71,9 +71,9 @@ export default function JobPage() {
             <div className="cta-band">
               <div>
                 <h2>Want the full course?</h2>
-                <p>10 short lessons in the same style: the organization, the work, the decisions, and how to show you fit, with practice questions. It takes a few minutes to write on your key.</p>
+                <p>10 short lessons in the same style: the organization, the work, the decisions, and how to show you fit, with practice questions. {rec.id === "sample" ? "The sample course is ready to watch, no key needed." : "It takes a few minutes to write on your key."}</p>
               </div>
-              <Link className="btn" href={`/job/${rec.id}/course`}>{rec.outline ? "Open the course" : "Build the 10-lesson course"}</Link>
+              <Link className="btn" href={`/job/${rec.id}/course`}>{rec.outline || rec.id === "sample" ? "Open the 10-lesson course" : "Build the 10-lesson course"}</Link>
             </div>
 
             <h2 className="section-title">The job brief</h2>

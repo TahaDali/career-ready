@@ -11,6 +11,7 @@ import Practice from "@/components/Practice";
 import Transcript from "@/components/Transcript";
 import { api } from "@/lib/api";
 import { SAMPLE } from "@/lib/sample";
+import { SAMPLE_LESSONS, SAMPLE_OUTLINE } from "@/lib/sample-course";
 import { prefetchVoice } from "@/lib/useEdgeVoice";
 import { loadJob, loadSettings, saveJob, saveSettings, type KeySettings } from "@/lib/store";
 import { timeLesson } from "@/lib/timing";
@@ -42,12 +43,11 @@ export default function CoursePage() {
 
   useEffect(() => {
     let r = loadJob(id);
-    if (!r && id === "sample") {
-      // The sample job's course is written on the visitor's key, from a posting rebuilt from the brief.
-      const b = SAMPLE.brief;
-      const text = [b.title, `${b.employer} · ${b.location}`, b.oneLiner, "Responsibilities:", ...b.responsibilities.map((x) => "- " + x.text),
-        "Requirements:", ...b.required.map((x) => "- " + x.text), "Preferred:", ...b.preferred.map((x) => "- " + x.text)].join("\n");
-      r = { id: "sample", createdAt: Date.now(), job: { text, source: "pasted" }, story: SAMPLE };
+    if (id === "sample") {
+      // The sample job's course is written by hand and ships with the app: no key needed.
+      // Only the visitor's progress is kept from this device.
+      r = { id: "sample", createdAt: r?.createdAt ?? Date.now(), job: { text: "", source: "pasted" }, story: SAMPLE,
+        outline: SAMPLE_OUTLINE, lessons: SAMPLE_LESSONS, progress: r?.progress };
       saveJob(r);
     }
     recRef.current = r; setRec(r); setSettings(loadSettings());
@@ -152,7 +152,9 @@ export default function CoursePage() {
             <span>Narrated · captions · practice</span>
             <span role="status">{doneCount} of {order.length || 10} complete</span>
           </div>
-          <p className="disclosure">Written by AI from the {brief.employer} posting. Facts come from the posting; people and numbers in scenes marked “Fictional example” are invented to teach. Not affiliated with {brief.employer}.</p>
+          <p className="disclosure">{rec.id === "sample"
+            ? "A sample course written by the Career Ready team to show the full product. Riverside Health, its people and every number in it are fictional."
+            : `Written by AI from the ${brief.employer} posting. Facts come from the posting; people and numbers in scenes marked “Fictional example” are invented to teach. Not affiliated with ${brief.employer}.`}</p>
         </section>
 
         {(building || readyCount < (order.length || 10)) && (
