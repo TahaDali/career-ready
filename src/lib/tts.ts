@@ -25,7 +25,7 @@ const pool = new Map<string, Conn[]>();
 const MAX_CONN = 4;
 function open(voice: string): Promise<MsEdgeTTS> {
   return (async () => {
-    const tts = new MsEdgeTTS({ connectionTimeoutMs: 6000, synthesisTimeoutMs: 12000 });
+    const tts = new MsEdgeTTS({ connectionTimeoutMs: 6000, synthesisTimeoutMs: 45000 });
     await tts.setMetadata(voice, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3, { wordBoundaryEnabled: true });
     return tts;
   })();
@@ -98,3 +98,4 @@ export async function synthesize(text: string, voice: string, rate = "-3%"): Pro
   }
   throw last instanceof Error ? last : new Error("voice failed");
 }
+

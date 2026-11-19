@@ -58,7 +58,8 @@ export default function CanvasPlayer({ lesson, cast, autoPlay = false, onEnd, on
   // A scene the clock entered without its clip keeps the browser voice for this play-through, so a late
   // clip can't re-time a scene that is already playing. Scenes ahead re-time freely as clips arrive.
   const [noClip, setNoClip] = useState<Record<number, true>>({});
-  const clips = useMemo(() => { const o: Record<number, VoiceClip | undefined> = {}; for (const [i, c] of Object.entries(allClips)) if (!noClip[+i]) o[+i] = c; return o; }, [allClips, noClip]);
+  // If Edge can't make even the first scene, the whole video uses the browser voice (never a mix).
+  const clips = useMemo(() => { const o: Record<number, VoiceClip | undefined> = {}; if (voiceMode !== BROWSER && failed[0]) return o; for (const [i, c] of Object.entries(allClips)) if (!noClip[+i]) o[+i] = c; return o; }, [allClips, noClip, failed, voiceMode]);
   const timed: TimedLesson = useMemo(() => timeLesson(lesson, speed, clips), [lesson, speed, clips]);
   // While a scene's Edge clip is still on its way, the clock waits for it instead of switching voices.
   const rawClipsRef = useRef(allClips); rawClipsRef.current = allClips;
@@ -66,7 +67,9 @@ export default function CanvasPlayer({ lesson, cast, autoPlay = false, onEnd, on
   const noClipRef = useRef(noClip); noClipRef.current = noClip;
   const waitSince = useRef<{ scene: number; at: number } | null>(null);
   const [waiting, setWaiting] = useState(false);
-  const WAIT_LIMIT = 10_000;
+  const WAIT_LIMIT = 45_000;
+  // The voice for the whole video: Edge, or the browser voice only if Edge can't even make scene 1.
+  const edgeDead = voiceMode !== BROWSER && !!failed[0];
 
   const tRef = useRef(0);
   const playingRef = useRef(false);
@@ -171,7 +174,7 @@ export default function CanvasPlayer({ lesson, cast, autoPlay = false, onEnd, on
         const k = sceneAt(t), sc = timed.scenes[k], clip = clipsRef.current?.[k], a = audioRef.current;
         const pending = (i: number) => voiceMode !== BROWSER && i < timed.scenes.length && !rawClipsRef.current[i] && !failedRef.current[i] && !noClipRef.current[i];
         // Wait at the end of this scene (before the next transition) for the next scene's clip, or at the
-        // start of this scene after a seek. After WAIT_LIMIT the scene falls back to the browser voice.
+        // start of this scene after a seek. After WAIT_LIMIT that scene plays silently with captions.
         const waitFor = pending(k) && t < sc.speechStart ? k : pending(k + 1) && t >= timed.scenes[k + 1].start - HOLD_BEFORE_END ? k + 1 : -1;
         if (waitFor >= 0) {
           if (waitSince.current?.scene !== waitFor) waitSince.current = { scene: waitFor, at: now };
@@ -190,7 +193,10 @@ export default function CanvasPlayer({ lesson, cast, autoPlay = false, onEnd, on
           lastScene.current = k; holdSince.current = null;
           onSceneChange?.(k);
           if (audioScene.current !== k) { a?.pause(); audioScene.current = -1; }
-          if (!clip && spokenScene.current !== k) speakBrowser(k);
+          // Never mix voices: a scene without its Edge clip plays silently (captions stay on), unless
+          // the whole video is on the browser voice.
+          if (!clip && spokenScene.current !== k && (voiceMode === BROWSER || edgeDead)) speakBrowser(k);
+          else if (!clip) { speechDone.current[k] = true; spokenScene.current = k; }
         }
         if (clip && a) {
           // Start this scene's clip at the right offset (also after a pause or a seek).
@@ -227,7 +233,7 @@ export default function CanvasPlayer({ lesson, cast, autoPlay = false, onEnd, on
     // A hidden tab gets no animation frames, but the narration keeps playing: keep the clock moving.
     const iv = setInterval(() => { if (document.hidden) step(performance.now()); }, 200);
     return () => { cancelAnimationFrame(raf); clearInterval(iv); };
-  }, [loaded, timed, sceneAt, draw, speakBrowser, onEnd, onSceneChange, speed, voiceMode, waiting]);
+  }, [loaded, timed, sceneAt, draw, speakBrowser, onEnd, onSceneChange, speed, voiceMode, waiting, edgeDead]);
 
   const play = useCallback(() => {
     if (preparing) return;

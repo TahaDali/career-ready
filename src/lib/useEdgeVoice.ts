@@ -64,7 +64,9 @@ export function useEdgeVoice(lesson: Lesson, voice: string | null) {
       while (next < n && alive) {
         const i = next++;
         const text = lesson.scenes[i].narration;
-        const c = (await fetchClip(text, voice)) ?? (alive ? await fetchClip(text, voice) : null);
+        // Up to three tries with a short back-off: Microsoft's service is slow and sometimes errors.
+        let c: VoiceClip | null = null;
+        for (let k = 0; k < 3 && !c && alive; k++) { if (k) await new Promise((r) => setTimeout(r, 800 * k)); c = await fetchClip(text, voice); }
         if (!alive) return;
         if (c) out[i] = c; else bad[i] = true;
         done++;
