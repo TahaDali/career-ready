@@ -35,6 +35,8 @@ async function viaClaude<T extends z.ZodType>(o: GenerateOptions<T>): Promise<z.
   const model = o.model && (CLAUDE_MODELS as readonly string[]).includes(o.model) ? o.model : DEFAULT_MODEL.anthropic;
   const client = new Anthropic({ apiKey: o.key, maxRetries: 2, timeout: 280_000 });
   try {
+    // A schema the API already refused (grammar too large) goes straight to the JSON fallback.
+    if (refused.has(o.schema)) return await claudeJSON(client, model, o);
     const res = await client.messages.parse({
       model,
       max_tokens: o.maxTokens ?? 16000,
@@ -52,10 +54,52 @@ async function viaClaude<T extends z.ZodType>(o: GenerateOptions<T>): Promise<z.
     if (e instanceof Anthropic.AuthenticationError) throw new AIError("That Claude API key was rejected. Check it and try again.", 401);
     if (e instanceof Anthropic.PermissionDeniedError) throw new AIError("This key can't use that model. Try another model.", 403);
     if (e instanceof Anthropic.RateLimitError) throw new AIError("Your key hit its rate limit. Wait a minute and try again.", 429);
+    if (e instanceof Anthropic.BadRequestError && /grammar|schema|too complex|too large|optional param|union/i.test(e.message)) {
+      // Structured outputs refused this schema: ask for the same JSON as plain text and validate it here.
+      refused.add(o.schema);
+      try { return await claudeJSON(client, model, o); }
+      catch (e2) { if (e2 instanceof AIError) throw e2; throw new AIError("Claude could not write this one. Please try again.", 502); }
+    }
     if (e instanceof Anthropic.BadRequestError) throw new AIError("Claude rejected the request: " + e.message.slice(0, 200), 400);
     if (e instanceof Anthropic.APIError) throw new AIError(`Claude API error (${e.status ?? "network"}). Please try again.`, 502);
     throw new AIError("Could not reach Claude. Check your connection and try again.", 502);
   }
+}
+
+// Schemas the API refused to compile, so later calls skip the doomed structured-output attempt.
+const refused = new WeakSet<z.ZodType>();
+
+function extractJSON(text: string): unknown {
+  const t = text.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "");
+  const a = t.indexOf("{"), b = t.lastIndexOf("}");
+  if (a < 0 || b <= a) throw new Error("no JSON object");
+  return JSON.parse(t.slice(a, b + 1));
+}
+
+// Fallback without structured outputs: the JSON Schema goes in the prompt, the answer is validated
+// with the same zod schema, and one failed validation is sent back to Claude to fix.
+async function claudeJSON<T extends z.ZodType>(client: Anthropic, model: string, o: GenerateOptions<T>): Promise<z.infer<T>> {
+  const schema = JSON.stringify(z.toJSONSchema(o.schema, { target: "draft-7" }));
+  const system = `${o.system}\n\n---\n\n## Output format\nReply with ONLY one JSON object, no prose and no code fences, that validates against this JSON Schema. Fill every field.\n${schema}`;
+  let user = o.user, lastProblem = "";
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const res = await client.messages.create({
+      model, max_tokens: o.maxTokens ?? 16000,
+      system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
+      messages: [{ role: "user", content: user }],
+      output_config: { effort: o.effort ?? "low" },
+    });
+    if (res.stop_reason === "refusal") throw new AIError("Claude declined this posting. Try another job link.", 422);
+    if (res.stop_reason === "max_tokens") throw new AIError("The answer was cut off (too long). Please try again.", 502);
+    const text = res.content.map((b) => (b.type === "text" ? b.text : "")).join("");
+    let json: unknown;
+    try { json = extractJSON(text); } catch { lastProblem = "The reply was not a single JSON object."; user = `${o.user}\n\n(Your previous reply was not valid JSON. Reply with only the JSON object.)`; continue; }
+    const parsed = o.schema.safeParse(json);
+    if (parsed.success) return parsed.data;
+    lastProblem = parsed.error.issues.slice(0, 8).map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
+    user = `${o.user}\n\n(Your previous JSON had these problems: ${lastProblem}. Reply with the corrected, complete JSON object only.)`;
+  }
+  throw new AIError("Claude's answer was missing some parts. Please try again.", 502);
 }
 
 async function viaOpenAI<T extends z.ZodType>(o: GenerateOptions<T>): Promise<z.infer<T>> {

@@ -9,7 +9,9 @@ export const GLYPHS = [
 ] as const;
 export const RECIPES = ["opener", "statement", "org", "flow", "record", "cast", "compare", "stepper", "question"] as const;
 
-const Glyph = z.enum(GLYPHS);
+// Plain strings (not enums): repeated enums made the structured-output grammar too large. The engine
+// checks every value and falls back to a default, so an unknown value can't break a scene.
+const Glyph = z.string().describe(`one of: ${GLYPHS.join(", ")}`);
 const Label = z.string().describe("At most 4 words; should appear in this scene's narration");
 const Step = z.object({ label: z.string(), glyph: Glyph });
 
@@ -29,7 +31,7 @@ export const SceneSchema = z.discriminatedUnion("recipe", [
   scene("statement", { text: z.string().describe("one sentence ≤ 14 words, also spoken"), emphasis: z.string().describe("one word of text") }),
   scene("org", { center: z.object({ label: Label, glyph: Glyph }), around: z.array(z.object({ label: Label, relation: z.string().describe("≤ 4 words"), glyph: Glyph })).describe("3–5 stakeholders") }),
   scene("flow", { steps: z.array(Step).describe("3–5 steps, labels ≤ 3 words"), active: z.number().int().describe("0-based index of the step where this role sits") }),
-  scene("record", { header: z.string(), title: z.string().describe("≤ 6 words"), rows: z.array(z.object({ field: z.string(), value: z.string().describe("≤ 3 words") })).describe("2–4 rows"), state: z.enum(["proposed", "confirmed", "decided"]) }),
+  scene("record", { header: z.string(), title: z.string().describe("≤ 6 words"), rows: z.array(z.object({ field: z.string(), value: z.string().describe("≤ 3 words") })).describe("2–4 rows"), state: z.string().describe("proposed | confirmed | decided") }),
   scene("cast", { people: z.array(z.string()).describe("1–3 cast keys"), line: z.object({ who: z.string().describe("cast key"), text: z.string().describe("≤ 12 words, also spoken") }) }),
   scene("compare", { title: z.string(), left: z.object({ title: z.string(), rows: z.array(z.string()) }).describe("the weaker approach, 2–3 rows ≤ 4 words"), right: z.object({ title: z.string(), rows: z.array(z.string()) }).describe("the stronger approach, 2–3 rows ≤ 4 words"), takeaway: z.string().describe("≤ 12 words") }),
   scene("stepper", { title: z.string(), steps: z.array(Step).describe("3–5 steps, labels ≤ 6 words") }),
@@ -75,13 +77,13 @@ export const CastSchema = z.object({
   key: z.string().describe("lowercase letters only, e.g. 'maya'"),
   name: z.string().nullable(),
   role: z.string().nullable(),
-  skin: z.enum(["skin1", "skin2", "skin3", "skin4", "skin5"]),
-  hair: z.enum(["hairBlack", "hairDark", "hairBrown", "hairAuburn", "hairSand", "hairGrey"]),
-  style: z.enum(["short", "side", "crop", "wavy", "curly", "puff", "bun", "bob", "long", "ponytail", "bald"]),
-  top: z.enum(["blazer", "shirt", "sweater", "cardigan", "tee"]),
-  topColor: z.enum(["charcoal", "navy", "slate", "denim", "sage", "olive", "sand", "stone", "oat"]),
-  bottom: z.enum(["charcoal", "navy", "slate", "denim", "sand", "stone"]),
-  lower: z.enum(["trousers", "skirt"]),
+  skin: z.string().describe("skin1 | skin2 | skin3 | skin4 | skin5"),
+  hair: z.string().describe("hairBlack | hairDark | hairBrown | hairAuburn | hairSand | hairGrey"),
+  style: z.string().describe("short | side | crop | wavy | curly | puff | bun | bob | long | ponytail | bald"),
+  top: z.string().describe("blazer | shirt | sweater | cardigan | tee"),
+  topColor: z.string().describe("charcoal | navy | slate | denim | sage | olive | sand | stone | oat"),
+  bottom: z.string().describe("charcoal | navy | slate | denim | sand | stone"),
+  lower: z.string().describe("trousers | skirt"),
   glasses: z.boolean(),
 });
 
