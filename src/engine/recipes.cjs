@@ -107,7 +107,7 @@ function opener(scene,lesson) {
   const d=scene.data||{},title=short(d.title||scene.headline||lesson.title,8),sub=short(d.subtitle||lesson.goal||'',9);
   return {draw(S,t,X){
     const tt=words(title).map((_,i)=>X.t0+.35+i*.2),at=words(sub).map((_,i)=>tt.at(-1)+.6+i*.2);
-    tpl.partOpener(S,t,{part:partOf(lesson.part),kicker:short(d.kicker||'The role in one minute',5),title,accent:sub||null,start:X.t0,end:X.t1,
+    tpl.partOpener(S,t,{part:partOf(lesson.part),kicker:short(d.kicker||'The role in one minute',7),title,accent:sub||null,start:X.t0,end:X.t1,
       at:{title:tt,accent:at},markWords:Math.min(2,words(sub).length),scene:X,exitAt:X.t1-.3,
       hero:(S,box,tt2)=>{const s=Math.min(box.w,box.h)*.62,p=seg(tt2,X.t0+.5,.8,E.outExpo);
         if(p>0)S.fade(clamp(p*1.8),()=>{const g=S.g,cx=box.x+box.w/2,cy=box.y+box.h/2;g.save();g.translate(0,(1-clamp(p))*28);
@@ -181,10 +181,18 @@ function flow(scene) {
 // record {header, title, rows:[{field, value}], state}
 function record(scene,lesson,people) {
   const d=scene.data||{},rows=(Array.isArray(d.rows)?d.rows:[]).slice(0,4).map(r=>({field:short(r.field,3),value:short(r.value,4)}));
-  const state=['proposed','confirmed','decided'].includes(d.state)?d.state:'proposed',who=Object.keys(people)[0];
+  const state=['proposed','confirmed','decided'].includes(d.state)?d.state:'proposed';
+  // The person beside the card: in a fictional scene, the first cast member the narration names
+  // (else the first cast member). A real fact, such as the posting's requirements, gets no invented
+  // person beside it, and the card moves to the centre.
+  let who=null;
+  try{const keys=Object.keys(people),said=k=>{const n=String(people[k]?.name||k).split(/\s+/)[0].replace(/[^\p{L}]/gu,'');
+      const m=n?new RegExp(`(^|[^\\p{L}])${n}(?![\\p{L}])`,'iu').exec(String(scene.narration||'')):null;return m?m.index:Infinity;};
+    if(scene.fiction)who=keys.filter(k=>said(k)<Infinity).sort((a,b)=>said(a)-said(b))[0]??keys[0]??null;}
+  catch{who=scene.fiction?Object.keys(people)[0]??null:null;}
   return {draw(S,t,X){
     head(S,t,X,scene.headline);
-    const x=430,y=206,w=720,rowH=Math.min(74,290/Math.max(1,rows.length)),hb=58,h=hb+64+rows.length*rowH+16;
+    const x=who?430:280,y=206,w=720,rowH=Math.min(74,240/Math.max(1,rows.length)),hb=58,h=hb+64+rows.length*rowH+16;
     const ats=cueList(X,rows.map(r=>r.value||r.field),{a:.25,b:.75}),cp=seg(t,X.t0+.4,.6,E.outExpo);
     if(who){const P=people[who];S.fade(seg(t,X.t0+.2,.6),()=>figure(S,'rc-p',230,468,{...P,s:.74,pose:t>ats[0]?'present':'stand',facing:1,
       speaking:talking(t,X.t0+.3,X.t1-.4)*.8,phase:t,label:'below'}));}
