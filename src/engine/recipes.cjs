@@ -91,7 +91,7 @@ function lookOf(m,i) {
     bottom:pick(m?.bottom,WARD,'charcoal'),lower:m?.lower==='skirt'?'skirt':'trousers',glasses:m?.glasses===true};
 }
 function castTable(cast) {
-  const out={};(cast||[]).forEach((m,i)=>{if(!m?.key)return;out[m.key]={...lookOf(m,i),name:m.name?short(m.name,3):null,role:m.role?short(m.role,3):null};});
+  const out={};(cast||[]).forEach((m,i)=>{if(!m?.key)return;const r=m.role?String(m.role).replace(/\s*\((fictional|invented)\)\s*/ig,' ').trim():'';out[m.key]={...lookOf(m,i),name:m.name?short(m.name,3):null,role:r?short(r,3):null};});
   return out;
 }
 
@@ -107,8 +107,8 @@ function opener(scene,lesson) {
     const tt=words(title).map((_,i)=>X.t0+.35+i*.2),at=words(sub).map((_,i)=>tt.at(-1)+.6+i*.2);
     tpl.partOpener(S,t,{part:lesson.part||'I',kicker:short(d.kicker||'The role in one minute',5),title,accent:sub||null,start:X.t0,end:X.t1,
       at:{title:tt,accent:at},markWords:Math.min(2,words(sub).length),scene:X,exitAt:X.t1-.3,
-      hero:(S,box,tt2)=>{const s=Math.min(box.w,box.h)*.62,p=seg(tt2,X.t0+.5,.8,E.outBack);
-        if(p>0)S.fade(clamp(p*1.8),()=>{const g=S.g,cx=box.x+box.w/2,cy=box.y+box.h/2;g.save();g.translate(cx,cy);g.scale(.85+.15*p,.85+.15*p);g.translate(-cx,-cy);
+      hero:(S,box,tt2)=>{const s=Math.min(box.w,box.h)*.62,p=seg(tt2,X.t0+.5,.8,E.outExpo);
+        if(p>0)S.fade(clamp(p*1.8),()=>{const g=S.g,cx=box.x+box.w/2,cy=box.y+box.h/2;g.save();g.translate(0,(1-clamp(p))*28);
           glyph(S,'hero',d.glyph,cx,cy,s,{t:tt2,p});g.restore();});}});
   }};
 }
@@ -138,8 +138,9 @@ function org(scene) {
     if(cp>0)S.fade(clamp(cp*2),()=>{glyph(S,'org-c',c.glyph||'building',cx,cy-20,150,{t});
       S.markText('org-cl',fitText(S,short(c.label,4),'label',300),cx,cy+90,{role:'label',align:'center',p:markP(t,ca,ats[0]??X.t1)});});
     around.forEach((a,i)=>{const q=pos[i],at=ats[i],next=ats[i+1]??X.t1,p=seg(t,at,.5,E.outExpo);if(p<=0)return;
-      const ex=q.L?q.x+120:q.x-120,sx=q.L?cx-95:cx+95;
-      S.partial([[sx,cy-10],[ex,q.y]],seg(t,at-.15,.6,E.inOut),{color:T.ink,width:2.5,dash:[2,7]});
+      const tx0=q.L?q.x-20:q.x+20,lw=Math.max(S.measure(fitText(S,a.label,'label',260),role('label')),a.relation?S.measure(fitText(S,a.relation,'small',300),role('small')):0);
+      const ex=q.L?tx0+lw+18:tx0-lw-18,sx=q.L?cx-95:cx+95;
+      if(q.L?ex<sx-10:ex>sx+10)S.partial([[sx,cy-10],[ex,q.y+4]],seg(t,at-.15,.6,E.inOut),{color:T.ink,width:2.5,dash:[2,7]});
       S.fade(clamp(p*1.6),()=>{const g=S.g;g.save();g.translate((1-p)*(q.L?-30:30),0);
         glyph(S,`org-g${i}`,a.glyph||'person',q.L?q.x-75:q.x+75,q.y-6,70,{t});
         const tx=q.L?q.x-20:q.x+20,al=q.L?'left':'right';
@@ -154,7 +155,7 @@ function flow(scene) {
   const d=scene.data||{},steps=(Array.isArray(d.steps)?d.steps:[]).slice(0,5).map(s=>({label:short(s.label,3),glyph:s.glyph}));
   if(steps.length<2)steps.push({label:'Deliver',glyph:'doc'},{label:'Review',glyph:'magnifier'});
   const n=steps.length,active=Math.max(0,Math.min(n-1,Number.isInteger(d.active)?d.active:n-1));
-  const gap=30,w=Math.min(270,(1160-gap*(n-1))/n),x0=640-(n*w+(n-1)*gap)/2,cy=395,h=230;
+  const gap=30,w=Math.min(270,(1160-gap*(n-1))/n),x0=640-(n*w+(n-1)*gap)/2,cy=395,h=240;
   return {draw(S,t,X){
     head(S,t,X,scene.headline);
     const ats=cueList(X,steps.map(s=>s.label),{a:.12,b:.7}),focus=Math.max(ats.at(-1)+.9,X.t0+(X.t1-X.t0)*.78);
@@ -162,9 +163,11 @@ function flow(scene) {
       const on=i===active,dim=on?1:1-.55*seg(t,focus,.6,E.inOut);
       S.fade(dim,()=>{const k=E.outBack(p),g=S.g;g.save();g.translate(x+w/2,cy);g.scale(k,k);g.translate(-(x+w/2),-cy);
         S.fade(clamp(p*2.3),()=>{K.card(S,`fl-c${i}`,x,cy-h/2,w,h,{weight:on&&t>=focus?4:2.5});
-          S.text(`fl-n${i}`,String(i+1).padStart(2,'0'),x+18,cy-h/2+30,{role:'kicker',color:T.inkSoft});
-          glyph(S,`fl-g${i}`,s.glyph,x+w/2,cy-12,Math.min(96,w*.5),{t});
-          S.markText(`fl-l${i}`,fitText(S,s.label,'label',w-28),x+w/2,cy+h/2-34,{role:'label',align:'center',p:markP(t,at,ats[i+1]??focus)});});
+          S.text(`fl-n${i}`,String(i+1).padStart(2,'0'),x+18,cy-h/2+30,{role:'kicker',color:T.inkSoft,owner:`fl-c${i}`});
+          const LL=S.layout(s.label,{role:'label',maxWidth:w-28}),two=LL.lines>1,mp=markP(t,at,ats[i+1]??focus);
+          glyph(S,`fl-g${i}`,s.glyph,x+w/2,two?cy-30:cy-12,Math.min(two?80:96,w*.5),{t});
+          S.sentence(`fl-l${i}`,s.label,x+w/2,cy+h/2-(two?48:34),{t,times:[],reveal:'none',role:'label',maxWidth:w-28,align:'center',owner:`fl-c${i}`,
+            styles:Object.fromEntries(words(s.label).map((_,j)=>[j,{mark:{p:mp}}]))});});
         g.restore();});
       if(i<n-1)S.arrow([x+w+4,cy],[x+w+gap-4,cy],seg(t,ats[i+1]-.3,.4,E.inOut),{bend:0,width:2.5,head:9});});
     // Where this role sits: an ink tag drops onto the active step when the focus lands.
@@ -179,47 +182,49 @@ function record(scene,lesson,people) {
   const state=['proposed','confirmed','decided'].includes(d.state)?d.state:'proposed',who=Object.keys(people)[0];
   return {draw(S,t,X){
     head(S,t,X,scene.headline);
-    const x=430,y=208,w=720,rowH=Math.min(78,300/Math.max(1,rows.length)),hb=58,h=hb+64+rows.length*rowH+20;
+    const x=430,y=206,w=720,rowH=Math.min(74,290/Math.max(1,rows.length)),hb=58,h=hb+64+rows.length*rowH+16;
     const ats=cueList(X,rows.map(r=>r.value||r.field),{a:.25,b:.75}),cp=seg(t,X.t0+.4,.6,E.outExpo);
-    if(who){const P=people[who];S.fade(seg(t,X.t0+.2,.6),()=>figure(S,'rc-p',230,500,{...P,s:.8,pose:t>ats[0]?'present':'stand',facing:1,
+    if(who){const P=people[who];S.fade(seg(t,X.t0+.2,.6),()=>figure(S,'rc-p',230,468,{...P,s:.74,pose:t>ats[0]?'present':'stand',facing:1,
       speaking:talking(t,X.t0+.3,X.t1-.4)*.8,phase:t,label:'below'}));}
     if(cp<=0)return;
     S.fade(cp,()=>{const g=S.g;g.save();g.translate(0,(1-cp)*24);
       S.actor('rc-card',{x,y,w,h},()=>{g.shadowColor='rgba(13,15,19,.14)';g.shadowBlur=24;g.shadowOffsetY=8;g.fillStyle=T.paperHi;g.fillRect(x,y,w,h);g.shadowColor='transparent';
         g.strokeStyle=T.ink;g.lineWidth=2.5;g.strokeRect(x,y,w,h);g.fillStyle=T.ink;g.fillRect(x,y,w,hb);});
-      S.text('rc-h',fitText(S,short(d.header||'Record',4),'kicker',w-60),x+24,y+hb/2,{role:'kicker',color:T.white,owner:'rc-card'});
+      const lab=state==='proposed'?'Proposed':state==='confirmed'?'Confirmed':'Decided',sw=S.measure(lab.toUpperCase(),role('kicker'))+44;
+      S.text('rc-h',fitText(S,short(d.header||'Record',4),'kicker',w-sw-70),x+24,y+hb/2,{role:'kicker',color:T.white,owner:'rc-card'});
       S.text('rc-t',fitText(S,short(d.title||scene.headline,6),'title',w-48),x+24,y+hb+36,{role:'title',owner:'rc-card'});
       rows.forEach((r,i)=>{const ry=y+hb+64+i*rowH+rowH/2,p=seg(t,ats[i],.45);
         S.rule(x+24,x+w-24,ry-rowH/2+4,1,{weight:1.2,color:T.rule});
         S.text(`rc-f${i}`,fitText(S,r.field,'kicker',250),x+24,ry,{role:'kicker',color:T.inkSoft,owner:'rc-card'});
         if(p>0)S.fade(p,()=>S.markText(`rc-v${i}`,fitText(S,r.value,'label',380),x+300,ry,{role:'label',p:markP(t,ats[i],ats[i+1]??X.t1-.8),owner:'rc-card'}));
         else S.stateBox(null,'proposed',x+300,ry-14,180,28,{register:false,alpha:.6});});
-      // The record's state, stamped once every field is filled.
+      // The record's state, stamped into the header band once every field is filled.
       const sp=seg(t,ats.at(-1)+.7,.5,E.outBack);
-      if(sp>0){const lab=state==='proposed'?'Proposed':state==='confirmed'?'Confirmed':'Decided',sw=S.measure(lab.toUpperCase(),role('kicker'))+70;
-        S.fade(clamp(sp*2),()=>{S.stateBox('rc-s',state,x+w-sw-20,y+h+18,sw,46,{p:sp});
-          S.text('rc-sl',lab,x+w-sw+(state==='proposed'?2:4),y+h+41,{role:'kicker',color:state==='proposed'?T.ink:T.white});});}
+      if(sp>0)S.fade(clamp(sp*2),()=>{S.stateBox('rc-s',state,x+w-sw-14,y+9,sw,hb-18,{p:sp,owner:'rc-card',outline:T.white});
+        S.text('rc-sl',lab,x+w-sw-14+sw/2,y+hb/2,{role:'kicker',align:'center',color:T.white,owner:'rc-s'});});
       g.restore();});
   }};
 }
 
 // cast {people:[key], line:{who, text}, prop}
 function castScene(scene,lesson,people) {
-  const d=scene.data||{},keys=(Array.isArray(d.people)?d.people:[]).filter(k=>people[k]).slice(0,3);
-  if(!keys.length)keys.push(...Object.keys(people).slice(0,2));
-  const who=people[d.line?.who]?d.line.who:keys[0],line=short(d.line?.text||'',14),n=keys.length;
-  const xs=keys.map((_,i)=>n===1?420:n===2?[330,850][i]:[250,640,1030][i]);
+  const d=scene.data||{},all=(Array.isArray(d.people)?d.people:[]).filter(k=>people[k]);
+  if(!all.length)all.push(...Object.keys(people).slice(0,2));
+  // Two people at most: the speaker on the left facing the listener, the bubble in the space between,
+  // so it never covers anyone. A third person would crowd the frame.
+  const who=people[d.line?.who]?d.line.who:all[0],other=all.find(k=>k!==who)??Object.keys(people).find(k=>k!==who);
+  const keys=[who,other].filter(Boolean),n=keys.length,line=short(d.line?.text||'',14);
+  const xs=n===1?[330]:[300,980],FEET=462;
   return {draw(S,t,X){
     head(S,t,X,scene.headline);
-    const ats=cueList(X,keys.map(k=>people[k].name||people[k].role||k),{a:.08,b:.35}),wi=keys.indexOf(who),la=Math.max(ats.at(-1)+.5,X.t0+(X.t1-X.t0)*.35);
-    keys.forEach((k,i)=>{const P=people[k],speaker=i===wi,dim=speaker?1:1-.45*seg(t,la,.5,E.inOut);
-      const p=seg(t,ats[i]-.2,.7,E.outExpo);if(p<=0)return;
-      S.fade(clamp(p*1.6)*dim,()=>figure(S,`cs-p${i}`,xs[i]+(1-p)*(i<n/2?-50:50),505,{...P,s:.84,facing:xs[i]<640?1:-1,
-        pose:speaker&&t>la?'present':i%2?'hold':'stand',prop:speaker?undefined:(d.prop==='laptop'||d.prop==='tablet'||d.prop==='phone'||d.prop==='folder'||d.prop==='paper'?d.prop:undefined),
-        speaking:speaker?talking(t,la,X.t1-.5):0,phase:t,label:'below',ground:null}));});
-    if(line&&wi>=0){const sx=xs[wi],bw=520,L=S.layout(line,{role:'body',maxWidth:bw-56}),bh=L.height+44,bx=Math.max(60,Math.min(1220-bw,sx<640?sx+90:sx-90-bw)),by=212;
+    const span=X.t1-X.t0,quote=line?spokenAt(X,line,X.t0+.3):null,la=quote!=null&&quote<X.t1-1.5?quote-.2:X.t0+span*.3;
+    keys.forEach((k,i)=>{const P=people[k],speaker=k===who,p=seg(t,X.t0+.25+i*.35,.7,E.outExpo);if(p<=0)return;
+      const dim=speaker?1:1-.35*seg(t,la,.5,E.inOut);
+      S.fade(clamp(p*1.6)*dim,()=>figure(S,`cs-p${i}`,xs[i]+(1-p)*(i===0?-50:50),FEET,{...P,s:.78,facing:i===0?1:-1,
+        pose:speaker&&t>la?'present':i?'hold':'stand',speaking:speaker?talking(t,la,X.t1-.5):0,phase:t,label:'below',ground:null}));});
+    if(line){const bx=n===1?470:420,bw=n===1?700:440,L=S.layout(line,{role:'body',maxWidth:bw-56}),bh=L.height+44,by=Math.max(212,300-bh/2);
       const bp=seg(t,la-.2,.5,E.outBack);
-      if(bp>0)S.fade(clamp(bp*2),()=>{K.bubble(S,'cs-b',bx,by,bw,bh,{tail:sx<640?'left':'right'});
+      if(bp>0)S.fade(clamp(bp*2),()=>{K.bubble(S,'cs-b',bx,by,bw,bh,{tail:'left'});
         S.sentence('cs-line',line,bx+28,by+bh/2,{t,times:phraseTimes(X,line,la,.2),reveal:'ghost',ghost:.2,dur:.3,role:'body',maxWidth:bw-56,owner:'cs-b'});});}
   }};
 }
@@ -270,10 +275,11 @@ function stepper(scene) {
 function question(scene) {
   const d=scene.data||{},options=(Array.isArray(d.options)?d.options:[]).slice(0,4).map(o=>short(o,6));
   while(options.length<2)options.push('Not sure');
-  const correct=Math.max(0,Math.min(options.length-1,Number.isInteger(d.correct)?d.correct:0)),prompt=short(d.prompt||scene.headline,16),reason=short(d.reason||'',14);
+  const correct=Math.max(0,Math.min(options.length-1,Number.isInteger(d.correct)?d.correct:0)),prompt=short(d.prompt||scene.headline,14),reason=short(d.reason||'',14);
   return {night:true,in:'wipe',draw(S,t,X){
     const pt=phraseTimes(X,prompt,X.t0+.8,.14),optAt=cueList(X,options,{a:.35,b:.6}),revealAt=Math.max(optAt.at(-1)+1.2,X.t1-3.2);
-    K.practice(S,t,X,{prompt,options,correct,revealAt,reason,kicker:'Check yourself',kickerAt:X.t0+.2,promptTimes:pt,optAt});
+    // The reason arrives once the prompt has faded, so the frame stays within the word budget.
+    K.practice(S,t,X,{prompt,options,correct,revealAt,reason,reasonAt:revealAt+1,kicker:'Check yourself',kickerAt:X.t0+.2,promptTimes:pt,optAt});
   }};
 }
 

@@ -16,9 +16,11 @@ Fill only the data fields of the scene's recipe:
 - cast: people [1–3 cast keys], line {who (cast key), text (≤ 12 words, also spoken in the narration)}, prop (optional)
 - compare: title, left {title, rows [2–3 × ≤ 4 words]} = the weaker approach, right {title, rows [2–3]} = the stronger one, takeaway (≤ 12 words)
 - stepper: title, steps [3–5 × {label (≤ 6 words), glyph}]
-- question: prompt (≤ 16 words), options [3 × ≤ 6 words], correct (0-based), reason (≤ 14 words)
+- question: prompt (≤ 12 words), options [3 × ≤ 4 words], correct (0-based), reason (≤ 12 words). The whole check must fit in 24 words on screen.
 Glyphs (only these): ${GLYPHS.join(", ")}.
-Labels on screen should use the same words the narration says, in the same order, so they appear as they are spoken.`;
+Labels on screen should use the same words the narration says, in the same order, so they appear as they are spoken.
+At most 24 words are on screen at once in any scene: keep labels short.
+cast: name two people at most (the speaker first); the line is spoken word for word in the narration.`;
 
 export const storySystem = () => [METHOD, RESEARCH, STORY, ENGINE].join("\n\n---\n\n");
 export const outlineSystem = () => [METHOD, OUTLINE].join("\n\n---\n\n");

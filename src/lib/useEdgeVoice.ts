@@ -47,7 +47,7 @@ function fetchClip(text: string, voice: string): Promise<VoiceClip | null> {
 }
 
 export function useEdgeVoice(lesson: Lesson, voice: string | null) {
-  // Clips arrive one by one (first scenes first); `ready` once the first is in (or after 12 s).
+  // Clips arrive one by one (first scenes first); `ready` once all are in (or after 90 s).
   // A clip that fails is tried once more; only then is the scene marked `failed` (browser voice).
   const [clips, setClips] = useState<Record<number, VoiceClip | undefined>>({});
   const [failed, setFailed] = useState<Record<number, true>>({});
@@ -71,11 +71,13 @@ export function useEdgeVoice(lesson: Lesson, voice: string | null) {
         if (c) out[i] = c; else bad[i] = true;
         done++;
         setClips({ ...out }); setFailed({ ...bad }); setProgress(done / n);
-        if (i === 0) setReady(true);
+        // Play only once the whole narration is ready, so the video never stops for the voice.
+        if (done === n) setReady(true);
       }
     };
     Array.from({ length: 4 }, worker);
-    const timer = setTimeout(() => { if (alive) setReady(true); }, 12000);
+    // Safety valve: after 90 s, play with whatever arrived (missing scenes are silent with captions).
+    const timer = setTimeout(() => { if (alive) setReady(true); }, 90000);
     return () => { alive = false; clearTimeout(timer); };
   }, [lesson, voice]);
   return { clips, failed, ready, progress };

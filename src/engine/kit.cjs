@@ -125,20 +125,26 @@ function person(S,t,id,key,x,feet,{at,s=.78,dx=-60,pose='stand',arms,facing=1,sa
 // strike; the reason replaces the picture. Keep prompt + options within the word budget.
 function practice(S,t,X,{prompt,options,correct,revealAt,reason,reasonAt,art=null,kickerAt,promptTimes,optAt,kicker='Check yourself'}) {
   const left=130,kp=seg(t,kickerAt??X.t0+.2,.45);
-  if(kp>0)S.fade(clamp(kp*2),()=>S.markText('q-kicker',kicker,left,128,{role:'kicker',p:kp,color:T.white,pad:8}));
+  // Career Ready: the kicker steps back once the options are up (word budget).
+  const kOut=seg(t,(optAt?.[0]??(promptTimes?.at(-1)??X.t0+1)+.3)+.6,.4);
+  if(kp>0&&kOut<1)S.fade(clamp(kp*2)*(1-kOut),()=>S.markText('q-kicker',kicker,left,128,{role:'kicker',p:kp,color:T.white,pad:8}));
   const pt=promptTimes||stagger(prompt,(kickerAt??X.t0)+.7,.16),r=seg(t,revealAt,.5,E.linear);
   const PL=S.layout(prompt,{role:'headline',maxWidth:1020}),py=184+(PL.lines-1)*PL.lh/2;
-  S.fade(1-.5*seg(t,revealAt+.4,.5),()=>S.sentence('q-prompt',prompt,left,py,{t,times:pt,reveal:'ghost',ghost:.14,dur:.3,role:'headline',maxWidth:1020,color:T.white}));
+  S.fade(1-.72*seg(t,revealAt+.4,.5),()=>S.sentence('q-prompt',prompt,left,py,{t,times:pt,reveal:'ghost',ghost:.14,dur:.3,role:'headline',maxWidth:1020,color:T.white}));
   const box={x:left,y:232,w:1020,h:128},artOut=seg(t,(reasonAt??revealAt+.5)-.45,.4);
   if(art&&artOut<1)S.fade(1-artOut,()=>art(S,box,t));
   if(reason)S.fade(seg(t,reasonAt??revealAt+.6,.5),()=>S.sentence('q-reason',reason,640,PL.lines>1?318:296,{t,times:stagger(reason,reasonAt??revealAt+.6,.08),reveal:'blur',role:'accentMd',color:T.white,align:'center',maxWidth:1040}));
-  const W=495,H=76;
-  options.forEach((o,i)=>{const cx=left+(i%2)*(W+30),cy=392+Math.floor(i/2)*(H+18),at=optAt?.[i]??pt.at(-1)+.3+i*.25,p=seg(t,at,.55,E.linear);if(p<=0)return;
+  // Career Ready: three options stack as full-width rows (room for the whole answer); four use the 2×2 grid.
+  const one=options.length<=3,W=one?1020:495,H=one?62:76;
+  options.forEach((o,i)=>{const cx=left+(one?0:(i%2)*(W+30)),cy=one?372+i*(H+8):392+Math.floor(i/2)*(H+18),at=optAt?.[i]??pt.at(-1)+.3+i*.25,p=seg(t,at,.55,E.linear);if(p<=0)return;
     const ok=i===correct,id='q-o'+i,k=E.outBack(p);
     S.fade((ok?1:1-.62*r)*clamp(p*2.3),()=>{const g=S.g;g.save();g.translate(cx+W/2,cy+H/2);g.scale(k,k);g.translate(-(cx+W/2),-(cy+H/2));
       S.actor(id,{x:cx,y:cy,w:W,h:H},()=>{S.roundRect(cx,cy,W,H,16);g.fillStyle=T.nightHi;g.fill();g.strokeStyle=T.nightRule;g.lineWidth=2;g.stroke();});
       S.decor(()=>{g.strokeStyle=T.mute;g.lineWidth=3;g.beginPath();g.arc(cx+30,cy+H/2,9,0,Math.PI*2);g.stroke();});
-      S.markText(id+'-t',o,cx+58,cy+H/2+1,{role:'body',p:ok?r:0,color:T.white,owner:id,pad:10});
+      // Career Ready: a long option drops to the label size, then shortens, so it never leaves its card.
+      const room=W-84,fitsAs=rl=>S.measure(o,role(rl))<=room,rl=fitsAs('body')?'body':'label';let ot=String(o);
+      if(!fitsAs(rl)){const ws=ot.split(/\s+/);while(ws.length>1&&S.measure(ws.join(' ')+'…',role(rl))>room)ws.pop();ot=ws.join(' ')+'…';}
+      S.markText(id+'-t',ot,cx+58,cy+H/2+1,{role:rl,p:ok?r:0,color:T.white,owner:id,pad:10});
       g.restore();});
     if(!ok&&r>0)S.fade(clamp(p*2.3),()=>S.strike(cx+52,cx+W-24,cy+H/2,r,{color:T.wrong,width:5}));
   });

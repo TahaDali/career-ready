@@ -286,9 +286,9 @@ export default function CanvasPlayer({ lesson, cast, autoPlay = false, onEnd, on
           aria-label={`Animated scene: ${scene?.headline ?? ""}`} role="img" />
         {!loaded && !error && <div className={styles.overlay}>Loading the animation engine…</div>}
         {error && <div className={styles.overlay}>Could not load the engine: {error}</div>}
-        {loaded && !playing && time < 0.05 && (
+        {loaded && !playing && time < 0.05 && freezeAt == null && (
           <button className={styles.bigPlay} onClick={play} aria-label="Play" disabled={preparing}>
-            {preparing ? `Preparing the voice… ${Math.round(progress * 100)}%` : "▶ Play"}
+            {preparing ? `Preparing the voice… ${Math.round(progress * lesson.scenes.length)} of ${lesson.scenes.length} scenes` : "▶ Play"}
           </button>
         )}
         {captions && scene && time > 0.05 && <div className={styles.caption} aria-live="off">{caption}</div>}

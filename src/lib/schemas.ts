@@ -32,10 +32,10 @@ export const SceneSchema = z.discriminatedUnion("recipe", [
   scene("org", { center: z.object({ label: Label, glyph: Glyph }), around: z.array(z.object({ label: Label, relation: z.string().describe("≤ 4 words"), glyph: Glyph })).describe("3–5 stakeholders") }),
   scene("flow", { steps: z.array(Step).describe("3–5 steps, labels ≤ 3 words"), active: z.number().int().describe("0-based index of the step where this role sits") }),
   scene("record", { header: z.string(), title: z.string().describe("≤ 6 words"), rows: z.array(z.object({ field: z.string(), value: z.string().describe("≤ 3 words") })).describe("2–4 rows"), state: z.string().describe("proposed | confirmed | decided") }),
-  scene("cast", { people: z.array(z.string()).describe("1–3 cast keys"), line: z.object({ who: z.string().describe("cast key"), text: z.string().describe("≤ 12 words, also spoken") }) }),
+  scene("cast", { people: z.array(z.string()).describe("1–2 cast keys, the speaker first"), line: z.object({ who: z.string().describe("cast key"), text: z.string().describe("≤ 12 words, also spoken") }) }),
   scene("compare", { title: z.string(), left: z.object({ title: z.string(), rows: z.array(z.string()) }).describe("the weaker approach, 2–3 rows ≤ 4 words"), right: z.object({ title: z.string(), rows: z.array(z.string()) }).describe("the stronger approach, 2–3 rows ≤ 4 words"), takeaway: z.string().describe("≤ 12 words") }),
   scene("stepper", { title: z.string(), steps: z.array(Step).describe("3–5 steps, labels ≤ 6 words") }),
-  scene("question", { prompt: z.string().describe("≤ 16 words"), options: z.array(z.string()).describe("3 options ≤ 6 words"), correct: z.number().int().describe("0-based"), reason: z.string().describe("≤ 14 words") }),
+  scene("question", { prompt: z.string().describe("≤ 12 words"), options: z.array(z.string()).describe("3 options, each ≤ 4 words"), correct: z.number().int().describe("0-based"), reason: z.string().describe("≤ 12 words") }),
 ]);
 
 const Question = z.object({
