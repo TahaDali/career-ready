@@ -22,6 +22,7 @@ if(!PARTS.I) {
     III:{name:'The role',layout:'heroBelow',motif:'ledger'},
     IV:{name:'Getting hired',layout:'heroLeft',motif:'form'},
     V:{name:'The first 90 days',layout:'heroRight',motif:'calendar'},
+    VI:{name:'Growth',layout:'heroBelow',motif:'columns'},
   });
 }
 

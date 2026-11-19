@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import CanvasPlayer from "@/components/CanvasPlayer";
 import { SAMPLE } from "@/lib/sample";
+import { SAMPLE_LESSONS } from "@/lib/sample-course";
 import { timeLesson } from "@/lib/timing";
 import type { CastMember, Lesson } from "@/lib/types";
 
@@ -11,6 +12,8 @@ export default function DevEngine() {
   const [data, setData] = useState<{ lesson: Lesson; cast: CastMember[] }>({ lesson: SAMPLE.story, cast: SAMPLE.cast });
   useEffect(() => {
     const q = new URLSearchParams(location.search), id = q.get("id"), lid = q.get("lesson") || "00";
+    if (q.get("t")) setT(Number(q.get("t")));
+    if (!id && lid !== "00") setData({ lesson: SAMPLE_LESSONS[lid], cast: SAMPLE.cast });
     if (id) fetch(`/api/dev/jobs?id=${id}`).then((r) => r.json()).then((rec) => setData({ cast: rec.story.cast, lesson: lid === "00" ? rec.story.story : rec.lessons[lid] }));
   }, []);
   const timed = useMemo(() => timeLesson(data.lesson), [data]);

@@ -4,6 +4,7 @@
 // and the stage's failed checks (type floors, edge guard, word budget). ?id=<job id>&lesson=00
 import { useEffect, useState } from "react";
 import { SAMPLE } from "@/lib/sample";
+import { SAMPLE_LESSONS } from "@/lib/sample-course";
 import { timeLesson } from "@/lib/timing";
 import type { CastMember, Lesson } from "@/lib/types";
 
@@ -18,6 +19,7 @@ export default function Audit() {
     (async () => {
       const q = new URLSearchParams(location.search), id = q.get("id"), lid = q.get("lesson") || "00";
       let lesson: Lesson = SAMPLE.story, cast: CastMember[] = SAMPLE.cast;
+      if (!id && lid !== "00") lesson = SAMPLE_LESSONS[lid];
       if (id) {
         const rec = await (await fetch(`/api/dev/jobs?id=${id}`)).json();
         cast = rec.story.cast; lesson = lid === "00" ? rec.story.story : rec.lessons[lid];
@@ -42,8 +44,10 @@ export default function Audit() {
         // Ownership chains (a word owned by a highlighter band owned by a card belongs to the card).
         const byId = new Map(res.items.map((i) => [i.id, i]));
         const chain = (x: Item) => { const out = new Set<string>([x.id]); let o = x.owner; for (let k = 0; o && k < 6; k++) { out.add(o); o = byId.get(o)?.owner ?? null; } return out; };
+        // Parts of the same numbered card (fl-c4, fl-g4, fl-g4-s, fl-n4) belong together.
+        const slot = (id: string) => { const m = /^([a-z]+)-[a-z]+(\d+)/.exec(id); return m ? m[1] + m[2] : null; };
         const related = (a: Item, b: Item) => { const ca = chain(a), cb = chain(b); return ca.has(b.id) || cb.has(a.id) || [...ca].some((x) => x !== a.id && cb.has(x)) ||
-          a.id.startsWith(b.id + "-") || b.id.startsWith(a.id + "-"); };
+          a.id.startsWith(b.id + "-") || b.id.startsWith(a.id + "-") || (slot(a.id) !== null && slot(a.id) === slot(b.id)); };
         for (let i = 0; i < labels.length; i++) for (let j = i + 1; j < labels.length; j++) {
           const a = labels[i], b = labels[j], o = inter(a.bounds, b.bounds);
           if (o > 0.15 * Math.min(a.bounds.w * a.bounds.h, b.bounds.w * b.bounds.h) && !related(a, b)) add(sc.id, sc.recipe, "label overlap", `${a.id} × ${b.id}`, t);

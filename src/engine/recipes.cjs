@@ -100,12 +100,14 @@ const head=(S,t,X,text,o={})=>K.head(S,t,X,short(text,6),{at:X.t0+.15,until:X.le
 // Highlight a label while it is being spoken: from its cue until the next item's cue.
 const markP=(t,a,b)=>seg(t,a,.4,E.inOut)*(1-seg(t,b,.4,E.inOut));
 
+// The part's roman numeral wherever it appears ("Part VI · Growth", "VI · Growth"), else Part I.
+const partOf=p=>{const m=/\b(VI|IV|V|III|II|I)\b/.exec(String(p||''));return m&&tpl.PARTS[m[1]]?'Part '+m[1]:'Part I';};
 // opener {kicker, title, subtitle, glyph}
 function opener(scene,lesson) {
   const d=scene.data||{},title=short(d.title||scene.headline||lesson.title,8),sub=short(d.subtitle||lesson.goal||'',9);
   return {draw(S,t,X){
     const tt=words(title).map((_,i)=>X.t0+.35+i*.2),at=words(sub).map((_,i)=>tt.at(-1)+.6+i*.2);
-    tpl.partOpener(S,t,{part:lesson.part||'I',kicker:short(d.kicker||'The role in one minute',5),title,accent:sub||null,start:X.t0,end:X.t1,
+    tpl.partOpener(S,t,{part:partOf(lesson.part),kicker:short(d.kicker||'The role in one minute',5),title,accent:sub||null,start:X.t0,end:X.t1,
       at:{title:tt,accent:at},markWords:Math.min(2,words(sub).length),scene:X,exitAt:X.t1-.3,
       hero:(S,box,tt2)=>{const s=Math.min(box.w,box.h)*.62,p=seg(tt2,X.t0+.5,.8,E.outExpo);
         if(p>0)S.fade(clamp(p*1.8),()=>{const g=S.g,cx=box.x+box.w/2,cy=box.y+box.h/2;g.save();g.translate(0,(1-clamp(p))*28);
@@ -130,7 +132,7 @@ function org(scene) {
   const d=scene.data||{},c=d.center||{label:'The organization',glyph:'building'},
     around=(Array.isArray(d.around)?d.around:[]).slice(0,5).map(a=>({label:short(a.label,3),relation:short(a.relation,4),glyph:a.glyph}));
   const n=around.length,left=Math.ceil(n/2),right=n-left;
-  const pos=around.map((_,i)=>{const L=i<left,k=L?i:i-left,m=L?left:right,y=m===1?395:lerp(270,520,k/Math.max(1,m-1));return {x:L?250:1030,y,L};});
+  const pos=around.map((_,i)=>{const L=i<left,k=L?i:i-left,m=L?left:right,y=m===1?395:lerp(270,520,k/Math.max(1,m-1));return {x:L?220:1060,y,L};});
   return {draw(S,t,X){
     head(S,t,X,scene.headline);
     const [ca,...ats]=cueList(X,[c.label,...around.map(a=>a.label)],{a:.1,b:.78});
@@ -138,13 +140,13 @@ function org(scene) {
     if(cp>0)S.fade(clamp(cp*2),()=>{glyph(S,'org-c',c.glyph||'building',cx,cy-20,150,{t});
       S.markText('org-cl',fitText(S,short(c.label,4),'label',300),cx,cy+90,{role:'label',align:'center',p:markP(t,ca,ats[0]??X.t1)});});
     around.forEach((a,i)=>{const q=pos[i],at=ats[i],next=ats[i+1]??X.t1,p=seg(t,at,.5,E.outExpo);if(p<=0)return;
-      const tx0=q.L?q.x-20:q.x+20,lw=Math.max(S.measure(fitText(S,a.label,'label',260),role('label')),a.relation?S.measure(fitText(S,a.relation,'small',300),role('small')):0);
+      const tx0=q.L?q.x-20:q.x+20,lw=Math.max(S.measure(fitText(S,a.label,'label',290),role('label')),a.relation?S.measure(fitText(S,a.relation,'small',300),role('small')):0);
       const ex=q.L?tx0+lw+18:tx0-lw-18,sx=q.L?cx-95:cx+95;
       if(q.L?ex<sx-10:ex>sx+10)S.partial([[sx,cy-10],[ex,q.y+4]],seg(t,at-.15,.6,E.inOut),{color:T.ink,width:2.5,dash:[2,7]});
       S.fade(clamp(p*1.6),()=>{const g=S.g;g.save();g.translate((1-p)*(q.L?-30:30),0);
         glyph(S,`org-g${i}`,a.glyph||'person',q.L?q.x-75:q.x+75,q.y-6,70,{t});
         const tx=q.L?q.x-20:q.x+20,al=q.L?'left':'right';
-        S.markText(`org-l${i}`,fitText(S,a.label,'label',260),q.L?tx+0:tx,q.y-14,{role:'label',align:al,p:markP(t,at,next)});
+        S.markText(`org-l${i}`,fitText(S,a.label,'label',290),q.L?tx+0:tx,q.y-14,{role:'label',align:al,p:markP(t,at,next)});
         if(a.relation)S.text(`org-r${i}`,fitText(S,a.relation,'small',300),tx,q.y+22,{role:'small',color:T.inkSoft,align:al});
         g.restore();});});
   }};
@@ -253,7 +255,7 @@ function compare(scene) {
 // stepper {title, steps:[string]}
 function stepper(scene) {
   const d=scene.data||{},steps=(Array.isArray(d.steps)?d.steps:[]).slice(0,5).map(s=>short(typeof s==='string'?s:s?.label,6));
-  const n=steps.length||1,gapY=Math.min(86,320/Math.max(1,n-1)),y0=n>4?236:252,rx=170;
+  const n=steps.length||1,gapY=n>4?68:Math.min(86,320/Math.max(1,n-1)),y0=n>4?226:252,rx=170; // 5 steps stay clear of the caption band
   return {draw(S,t,X){
     head(S,t,X,d.title||scene.headline);
     const ats=cueList(X,steps,{a:.12,b:.78}),ys=steps.map((_,i)=>y0+i*gapY);
