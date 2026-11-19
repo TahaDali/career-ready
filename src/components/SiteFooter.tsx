@@ -26,7 +26,7 @@ export default function SiteFooter() {
 export function SiteNav() {
   return (
     <nav aria-label="Main" className="site-nav">
-      <Link href="/#how">How it works</Link>
+      <Link href="/about">How it works</Link>
       <Link href="/job/sample/course">Sample course</Link>
       <Link href="/make" className="site-nav-cta">Make my video</Link>
     </nav>
