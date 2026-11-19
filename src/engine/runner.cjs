@@ -5,7 +5,7 @@
 // from its scene span and narration cues, so measured narration re-times the world without edits.
 const {E,seg,clamp,lerp,cameraAt,orderKeys,planner,createDesignStage}=require('./design.cjs');
 const tpl=require('./templates.cjs');
-require('./career-setup.cjs');
+require('./career-setup.cjs'); // Career Ready (Nov 19 2026): was ./course.cjs; otherwise unchanged
 
 const GAPX=1700,GAPY=1100;
 

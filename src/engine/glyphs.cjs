@@ -1,4 +1,5 @@
 'use strict';
+// Career Ready (Nov 19 2026): the coin glyph shows $ instead of £. Otherwise unchanged from the AI Fellow edition.
 // Generic glyphs (first written for an earlier course; reused here as a neutral vocabulary): a college campus, community centre,
 // ballot box, speech bubble, megaphone, envelope, inbox row, phone post, poster, calendar, meeting
 // table, spreadsheet, sign-up form, class tile, coin, map pin, ID card, sun and moon. Colours come

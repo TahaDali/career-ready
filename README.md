@@ -56,6 +56,8 @@ Paste a job link and your Claude (`sk-ant-…`) or OpenAI key in the page. No se
 
 ## Built on pre-existing work (cited)
 
+**See [BUILD-LOG.md](BUILD-LOG.md)** for the commit timeline and a file-by-file list of what was reused and what was written during the hackathon.
+
 Organizers confirmed that open source, earlier projects and other sources may be used if cited.
 
 - **Reused:** the Continuous-Learning-Video animation engine (Apache-2.0, LICENSE and NOTICE in
