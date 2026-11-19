@@ -28,7 +28,7 @@ export default function JobPage() {
         <Masthead />
         <main className="shell" style={{ padding: "48px 0" }}>
           <h1>Job not found on this device</h1>
-          <p style={{ margin: "16px 0" }}>Jobs are saved in this browser only. <Link href="/">Make a new video</Link>.</p>
+          <p style={{ margin: "16px 0" }}>Jobs are saved in this browser only. <Link href="/make">Make a new video</Link>.</p>
         </main>
       </>
     );

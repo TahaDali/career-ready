@@ -1,179 +1,165 @@
-"use client";
+// The landing page: what Career Ready is, the real player running the sample, and the way in (/make).
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import CanvasPlayer from "@/components/CanvasPlayer";
 import Masthead from "@/components/Masthead";
-import { api } from "@/lib/api";
-import { listJobs, loadSettings, newId, saveJob, saveSettings, type KeySettings } from "@/lib/store";
-import { prefetchVoice } from "@/lib/useEdgeVoice";
-import type { JobInput, JobRecord, StoryResult } from "@/lib/types";
-import s from "./home.module.css";
+import SiteFooter, { SiteNav } from "@/components/SiteFooter";
+import { SAMPLE } from "@/lib/sample";
+import { SAMPLE_OUTLINE } from "@/lib/sample-course";
+import s from "./landing.module.css";
 
-const MODELS = {
-  anthropic: [
-    { id: "claude-opus-5-5", label: "Claude Opus 5.5 (best)" },
-    { id: "claude-sonnet-5-5", label: "Claude Sonnet 5.5 (faster)" },
-    { id: "claude-haiku-5-5", label: "Claude Haiku 5.5 (fastest)" },
-  ],
-  openai: [{ id: "gpt-5", label: "GPT-5" }, { id: "gpt-5-mini", label: "GPT-5 mini (faster)" }],
-};
+const STEPS = [
+  ["01", "Paste a job link", "Greenhouse, Lever and most career sites. If a page needs a login, paste the posting's text instead."],
+  ["02", "Your AI writes a storyboard", "Claude or ChatGPT, on your own key, writes a job brief and a 6–7 scene story. Every answer is checked against a strict format and repaired before it plays."],
+  ["03", "Our engine draws it live", "The scenes animate in your browser with a natural narrator voice, captions and keyboard controls. Nothing is rendered on a server, so it starts at once."],
+  ["04", "Go deeper if you want", "Turn the same job into a 10-lesson course: the organization, the work, the hiring decision and the first 90 days, with practice questions."],
+];
 
-type Stage = "idle" | "reading" | "writing" | "done";
+const PROBLEMS = [
+  ["A posting is a list", "“Verify eligibility. Schedule across departments.” Postings name tasks, but rarely explain why they matter, or to whom."],
+  ["Prep is generic", "Most interview advice would fit any job. It doesn't explain this employer, this team, or this role."],
+  ["Research takes hours", "Learning an unfamiliar industry from scratch takes time most applicants don't have before a deadline."],
+];
 
-export default function Home() {
-  const router = useRouter();
-  const [url, setUrl] = useState("");
-  const [text, setText] = useState("");
-  const [paste, setPaste] = useState(false);
-  const [settings, setSettings] = useState<KeySettings>({ provider: "anthropic", model: "", key: "", remember: false });
-  const [stage, setStage] = useState<Stage>("idle");
-  const [error, setError] = useState<string | null>(null);
-  const [elapsed, setElapsed] = useState(0);
-  const [jobs, setJobs] = useState<JobRecord[]>([]);
-  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+const LABELS = [
+  ["posting", "From the posting", "Facts about the employer and the role, restated faithfully, never upgraded."],
+  ["verify", "General knowledge · verify", "Widely known context about the industry, tagged so you check it yourself."],
+  ["fiction", "Fictional example", "Invented people, dialogue and numbers that teach a real decision. Always badged."],
+];
 
-  useEffect(() => { setSettings(loadSettings()); setJobs(listJobs()); }, []);
-  useEffect(() => () => { if (timer.current) clearInterval(timer.current); }, []);
+const WHO = [
+  ["Students and new graduates", "Understand an employer before you apply, and walk into the interview knowing what the work actually is."],
+  ["Career changers", "Learn the shape of a new industry in minutes: who it serves, who pays, and where a role fits."],
+  ["Career services teams", "Send students a sample before a mock interview, or build a course for a role many of them apply to."],
+];
 
-  const busy = stage === "reading" || stage === "writing";
-  const models = MODELS[settings.provider];
-  const model = settings.model && models.some((m) => m.id === settings.model) ? settings.model : models[0].id;
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    if (!url.trim() && text.trim().length < 200) { setError("Paste a job link, or paste the posting text."); return; }
-    if (settings.key.trim().length < 20) { setError(`Add your ${settings.provider === "openai" ? "OpenAI" : "Claude"} API key.`); return; }
-    const conf = { ...settings, model, key: settings.key.trim() };
-    saveSettings(conf);
-    const t0 = Date.now();
-    setElapsed(0);
-    timer.current = setInterval(() => setElapsed(Math.round((Date.now() - t0) / 1000)), 500);
-    try {
-      setStage("reading");
-      const { job } = await api<{ job: JobInput }>("/api/ingest", { url: url.trim() || undefined, text: paste ? text : undefined });
-      setStage("writing");
-      const { story } = await api<{ story: StoryResult }>("/api/story", { job }, conf);
-      prefetchVoice(story.story); // the voice starts loading while the video page opens
-      const id = newId();
-      saveJob({ id, createdAt: Date.now(), job, story });
-      setStage("done");
-      router.push(`/job/${id}`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
-      setStage("idle");
-    } finally {
-      if (timer.current) clearInterval(timer.current);
-    }
-  }
-
+export default function Landing() {
+  const parts = Array.from(new Set(SAMPLE_OUTLINE.lessons.map((l) => l.part)));
   return (
     <>
-      <Masthead />
-      <main className="shell">
+      <a className="skip-link" href="#main">Skip to the content</a>
+      <Masthead edition=" "><SiteNav /></Masthead>
+      <main id="main" className="shell">
         <section className={s.hero} aria-labelledby="title">
-          <div>
-            <p className="eyebrow">Understand any job in one minute</p>
-            <h1 id="title">Paste a job link. Watch the job explained.</h1>
+          <div className={s.heroText}>
+            <p className="eyebrow">For anyone applying to a job they don&apos;t fully understand yet</p>
+            <h1 id="title">Paste a job link. <span className={s.accent}>Watch the job explained.</span></h1>
           </div>
-          <p className={s.deck}>
-            Career Ready reads a job posting and turns it into a <span className="mark">one-minute animated story</span>:
-            what the organization does, how the work flows, and what they are really hiring for. Then, if you want, a full
-            10-lesson course with practice questions.
-          </p>
-        </section>
-
-        <form className={s.card} onSubmit={submit} aria-describedby="key-note">
-          <div className={s.field}>
-            <label htmlFor="url" className={s.label}>1 · Job link</label>
-            <input id="url" type="url" inputMode="url" placeholder="https://boards.greenhouse.io/company/jobs/123…" value={url}
-              onChange={(e) => setUrl(e.target.value)} disabled={busy} className={s.input} autoComplete="off" />
-            <button type="button" className="text-button" onClick={() => setPaste((p) => !p)} aria-expanded={paste}>
-              {paste ? "Hide the text box" : "Page needs a login? Paste the posting text instead"}
-            </button>
-            {paste && (
-              <textarea aria-label="Posting text" className={s.textarea} rows={8} value={text} onChange={(e) => setText(e.target.value)}
-                placeholder="Paste the whole job description here…" disabled={busy} />
-            )}
-          </div>
-
-          <div className={s.field}>
-            <span className={s.label} id="ai-label">2 · Your AI</span>
-            <div className={s.segment} role="radiogroup" aria-labelledby="ai-label">
-              {(["anthropic", "openai"] as const).map((p) => (
-                <button key={p} type="button" role="radio" aria-checked={settings.provider === p} disabled={busy}
-                  onClick={() => setSettings({ ...settings, provider: p, model: "" })}>
-                  {p === "anthropic" ? "Claude" : "ChatGPT"}
-                </button>
-              ))}
-              <select aria-label="Model" value={model} disabled={busy} onChange={(e) => setSettings({ ...settings, model: e.target.value })}>
-                {models.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
-              </select>
-            </div>
-            <input type="password" aria-label={`${settings.provider === "openai" ? "OpenAI" : "Claude"} API key`} className={s.input}
-              placeholder={settings.provider === "openai" ? "sk-… (your OpenAI API key)" : "sk-ant-… (your Claude API key)"}
-              value={settings.key} onChange={(e) => setSettings({ ...settings, key: e.target.value })} disabled={busy} autoComplete="off" spellCheck={false} />
-            <label className={s.check}>
-              <input type="checkbox" checked={settings.remember} onChange={(e) => setSettings({ ...settings, remember: e.target.checked })} />
-              Remember my key on this device
-            </label>
-            <p id="key-note" className={s.note}>
-              Your key goes from this browser to our server and straight to {settings.provider === "openai" ? "OpenAI" : "Anthropic"} for
-              this request only. We never store or log it. A one-minute video costs a few cents on your key.
+          <div className={s.heroSide}>
+            <p className={s.deck}>
+              Career Ready turns a job posting into a <span className="mark">narrated, animated one-minute story</span>:
+              what the organization does, how the work flows, and what they are really hiring for. Then, if you want, a
+              full 10-lesson course with practice questions.
             </p>
+            <div className={s.ctas}>
+              <Link className="btn" href="/make">Make my video</Link>
+              <Link className="control-link" href="/job/sample/course">See a full sample course</Link>
+            </div>
+            <p className={s.small}>The sample below is free. New videos use your own Claude or ChatGPT key and cost a few cents each.</p>
           </div>
-
-          <div className={s.actions}>
-            <button className="btn" type="submit" disabled={busy}>{busy ? "Working…" : "Make my video"}</button>
-            <Link href="/job/sample" className="control-link">Watch a sample first</Link>
-          </div>
-
-          {error && <p className="error" role="alert">{error}</p>}
-          {busy && (
-            <ol className={s.progress} aria-live="polite">
-              <li data-state={stage === "reading" ? "now" : "done"}>Reading the job page</li>
-              <li data-state={stage === "writing" ? "now" : "todo"}>Writing the brief and the story <span className={s.muted}>(about a minute)</span></li>
-              <li data-state="todo">Drawing your video</li>
-              <li className={s.timer}>{elapsed}s</li>
-            </ol>
-          )}
-        </form>
-
-        <section className={s.how} aria-label="How it works">
-          {[
-            ["01", "The organization first", "Who it serves, who pays, and why this job exists."],
-            ["02", "How the work flows", "The steps that deliver value, and where this role sits."],
-            ["03", "A real work moment", "A short fictional example of a decision you would make."],
-            ["04", "What they hire for", "Then one interview-style question to check yourself."],
-          ].map(([n, h, p]) => (
-            <div key={n}><span className={s.num}>{n}</span><h3>{h}</h3><p>{p}</p></div>
-          ))}
         </section>
 
-        {jobs.length > 0 && (
-          <section className={s.recent} aria-labelledby="recent">
-            <h2 id="recent" className={s.h2}>Your jobs on this device</h2>
-            <ul>
-              {jobs.map((j) => (
-                <li key={j.id}>
-                  <Link href={`/job/${j.id}`}><strong>{j.story.brief.title}</strong> · {j.story.brief.employer}</Link>
-                  <span className={s.muted}>{j.outline ? `Course: ${Object.keys(j.lessons ?? {}).length}/10 lessons` : "Video + brief"}</span>
-                </li>
-              ))}
+        <section id="sample" className={s.sample} aria-label="Sample video">
+          <div className={s.sampleHead}>
+            <p className="kicker">Sample · {SAMPLE.brief.title} · {SAMPLE.brief.employer}</p>
+            <p className={s.small}>This is the real player, drawing live in your browser. Press play.</p>
+          </div>
+          <CanvasPlayer lesson={SAMPLE.story} cast={SAMPLE.cast} />
+        </section>
+
+        <section className={s.section} aria-labelledby="problem">
+          <p className="eyebrow">The problem</p>
+          <h2 id="problem" className={s.h2}>A job posting is a list. The job is a world.</h2>
+          <div className={s.three}>
+            {PROBLEMS.map(([h, p]) => (<div key={h}><h3>{h}</h3><p>{p}</p></div>))}
+          </div>
+        </section>
+
+        <section id="how" className={s.section} aria-labelledby="how-title">
+          <p className="eyebrow">How it works</p>
+          <h2 id="how-title" className={s.h2}>From link to lesson in about a minute</h2>
+          <ol className={s.steps}>
+            {STEPS.map(([n, h, p]) => (<li key={n}><span className={s.num}>{n}</span><h3>{h}</h3><p>{p}</p></li>))}
+          </ol>
+        </section>
+
+        <section className={s.section} aria-labelledby="get">
+          <p className="eyebrow">What you get</p>
+          <h2 id="get" className={s.h2}>One minute to understand. Twenty to prepare.</h2>
+          <div className={s.products}>
+            <article className={s.product}>
+              <p className="kicker">In about a minute</p>
+              <h3>The one-minute story and job brief</h3>
+              <ul>
+                <li>Who the organization serves, and who pays</li>
+                <li>How the work flows, and where this role sits</li>
+                <li>A short fictional work moment with a real decision</li>
+                <li>What they are really hiring for, and a self-check question</li>
+                <li>A brief: requirements, likely interview questions, and what the posting doesn&apos;t say</li>
+              </ul>
+              <Link className="control-link" href="/job/sample">Open the sample brief</Link>
+            </article>
+            <article className={s.product}>
+              <p className="kicker">In a few minutes more</p>
+              <h3>The 10-lesson course</h3>
+              <ol className={s.outline}>
+                {parts.map((p) => (
+                  <li key={p}><span className={s.part}>{p.replace(/^Part\s+/, "")}</span>
+                    <span>{SAMPLE_OUTLINE.lessons.filter((l) => l.part === p).map((l) => l.title).join(" · ")}</span></li>
+                ))}
+              </ol>
+              <Link className="control-link" href="/job/sample/course">Open the sample course</Link>
+            </article>
+          </div>
+        </section>
+
+        <section className={s.section} aria-labelledby="method">
+          <div className={s.split}>
+            <div>
+              <p className="eyebrow">The method</p>
+              <h2 id="method" className={s.h2}>Organization first. Then the work. Then you.</h2>
+              <p className={s.body}>
+                A job only makes sense inside the organization that needs it. Every video and course follows the same
+                teaching method: the problem the organization exists to solve, the people it serves and who pays, how
+                a request becomes an outcome, and only then the role, the hiring decision and the first 90 days.
+              </p>
+              <p className={s.body}>No invented company facts. No fake hiring score. Where the posting is silent, the lesson says so.</p>
+            </div>
+            <ul className={s.labels} aria-label="Every claim carries one of three labels">
+              {LABELS.map(([k, t, p]) => (<li key={k}><span className={`tag ${k}`}>{t}</span><p>{p}</p></li>))}
             </ul>
-          </section>
-        )}
+          </div>
+        </section>
+
+        <section className={s.section} aria-labelledby="who">
+          <p className="eyebrow">Who it&apos;s for</p>
+          <h2 id="who" className={s.h2}>One university. Every major. Every job link.</h2>
+          <div className={s.three}>
+            {WHO.map(([h, p]) => (<div key={h}><h3>{h}</h3><p>{p}</p></div>))}
+          </div>
+        </section>
+
+        <section className={s.privacy} aria-labelledby="privacy">
+          <div>
+            <p className="eyebrow">Your key, your data</p>
+            <h2 id="privacy" className={s.h2}>We never store your key.</h2>
+          </div>
+          <ul>
+            <li>Your API key goes from your browser, through our server, straight to Anthropic or OpenAI for that one request. It is never saved or logged.</li>
+            <li>Your jobs, courses and progress stay in this browser. There are no accounts.</li>
+            <li>Narration text is sent to Microsoft&apos;s voice service to be read aloud. You can switch to your browser&apos;s own voice.</li>
+          </ul>
+          <Link href="/privacy">Read the privacy notice</Link>
+        </section>
+
+        <div className="cta-band">
+          <div>
+            <h2>Try it with the next job you apply for.</h2>
+            <p>Paste the link, add your key, and watch the job explained in about a minute.</p>
+          </div>
+          <Link className="btn" href="/make">Make my video</Link>
+        </div>
         <SiteFooter />
       </main>
     </>
-  );
-}
-
-function SiteFooter() {
-  return (
-    <footer>
-      <p>Understand the organization. Then the work. Then yourself in it.</p>
-      <p>Built at BAU Innovate 2026 on our open-source Continuous-Learning-Video engine. Facts come from the posting; examples are labelled fictional. <Link href="/about">How it works and credits</Link>.</p>
-    </footer>
   );
 }

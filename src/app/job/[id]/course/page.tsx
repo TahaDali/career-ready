@@ -106,7 +106,7 @@ export default function CoursePage() {
   }, [rec, current]);
 
   if (rec === undefined) return <Masthead />;
-  if (rec === null) return (<><Masthead /><main className="shell" style={{ padding: "48px 0" }}><h1>Course not found on this device</h1><p><Link href="/">Start again</Link></p></main></>);
+  if (rec === null) return (<><Masthead /><main className="shell" style={{ padding: "48px 0" }}><h1>Course not found on this device</h1><p><Link href="/make">Start again</Link></p></main></>);
 
   const { brief, cast } = rec.story;
   const outline = rec.outline;

@@ -1,12 +1,13 @@
 import Link from "next/link";
 import Masthead from "@/components/Masthead";
+import SiteFooter, { SiteNav } from "@/components/SiteFooter";
 
 export const metadata = { title: "How Career Ready works · credits" };
 
 export default function About() {
   return (
     <>
-      <Masthead />
+      <Masthead edition=" "><SiteNav /></Masthead>
       <main className="shell">
         <section className="intro">
           <p className="eyebrow">How it works</p>
@@ -18,7 +19,7 @@ export default function About() {
             <ol style={{ padding: "4px 0 16px 22px", lineHeight: 1.7 }}>
               <li><strong>Read the posting.</strong> Our server fetches the page (Greenhouse and Lever through their public job APIs, other sites through their schema.org JobPosting data or main text). You can also paste the text.</li>
               <li><strong>Write the story.</strong> Your AI (Claude or ChatGPT, with your own key) writes a job brief and a storyboard: 6–7 scenes, each naming a <em>recipe</em> (organization map, value flow, record card, people, comparison, steps, statement, question) and the data to draw. The answer is schema-checked and repaired before it reaches the player.</li>
-              <li><strong>Draw it live.</strong> The storyboard plays in your browser on our open-source canvas animation engine, timed to your browser’s own voice. Nothing is rendered on a server, so it starts immediately.</li>
+              <li><strong>Draw it live.</strong> The storyboard plays in your browser on our open-source canvas animation engine, narrated by a Microsoft neural voice and timed to its measured word timings (or your browser’s own voice, if you choose). Nothing is rendered on a server, so it starts immediately.</li>
               <li><strong>Go further.</strong> The 10-lesson course is written the same way, two lessons at a time, with practice questions and feedback.</li>
             </ol>
           </details>
@@ -42,7 +43,8 @@ export default function About() {
             </ul>
           </details>
         </div>
-        <p style={{ margin: "28px 0" }}><Link className="btn" href="/">Make a video</Link></p>
+        <p style={{ margin: "28px 0" }}><Link className="btn" href="/make">Make a video</Link></p>
+        <SiteFooter />
       </main>
     </>
   );
