@@ -48,30 +48,45 @@ function fetchClip(text: string, voice: string): Promise<VoiceClip | null> {
 
 export function useEdgeVoice(lesson: Lesson, voice: string | null) {
   // Clips arrive one by one (first scenes first); `ready` once the first is in (or after 12 s).
+  // A clip that fails is tried once more; only then is the scene marked `failed` (browser voice).
   const [clips, setClips] = useState<Record<number, VoiceClip | undefined>>({});
+  const [failed, setFailed] = useState<Record<number, true>>({});
   const [ready, setReady] = useState(false);
   const [progress, setProgress] = useState(0);
   useEffect(() => {
-    setClips({}); setProgress(0); setReady(!voice);
+    setClips({}); setFailed({}); setProgress(0); setReady(!voice);
     if (!voice) return;
     let alive = true;
-    const n = lesson.scenes.length, need = Math.min(1, n);
-    let done = 0, next = 0, firstDone = 0;
-    const out: Record<number, VoiceClip | undefined> = {};
+    const n = lesson.scenes.length;
+    let done = 0, next = 0;
+    const out: Record<number, VoiceClip | undefined> = {}, bad: Record<number, true> = {};
     const worker = async () => {
       while (next < n && alive) {
         const i = next++;
-        const c = await fetchClip(lesson.scenes[i].narration, voice);
+        const text = lesson.scenes[i].narration;
+        const c = (await fetchClip(text, voice)) ?? (alive ? await fetchClip(text, voice) : null);
         if (!alive) return;
-        if (c) out[i] = c;
-        done++; if (i < need) firstDone++;
-        setClips({ ...out }); setProgress(done / n);
-        if (firstDone >= need) setReady(true);
+        if (c) out[i] = c; else bad[i] = true;
+        done++;
+        setClips({ ...out }); setFailed({ ...bad }); setProgress(done / n);
+        if (i === 0) setReady(true);
       }
     };
     Array.from({ length: 4 }, worker);
     const timer = setTimeout(() => { if (alive) setReady(true); }, 12000);
     return () => { alive = false; clearTimeout(timer); };
   }, [lesson, voice]);
-  return { clips, ready, progress };
+  return { clips, failed, ready, progress };
+}
+
+// Start fetching a lesson's clips before its player opens (e.g. while the page navigates), in scene
+// order, so the first scenes are ready first. Results land in the same cache the player reads.
+export function prefetchVoice(lesson: Lesson, voice?: string | null) {
+  let v = voice;
+  if (!v) { try { v = localStorage.getItem("cr:voice") || EDGE_VOICES[0].id; } catch { v = EDGE_VOICES[0].id; } }
+  if (!v || v === "browser") return;
+  const texts = lesson.scenes.map((s) => s.narration);
+  let next = 0;
+  const worker = async () => { while (next < texts.length) await fetchClip(texts[next++], v!); };
+  Array.from({ length: 3 }, worker);
 }

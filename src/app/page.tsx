@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import Masthead from "@/components/Masthead";
 import { api } from "@/lib/api";
 import { listJobs, loadSettings, newId, saveJob, saveSettings, type KeySettings } from "@/lib/store";
+import { prefetchVoice } from "@/lib/useEdgeVoice";
 import type { JobInput, JobRecord, StoryResult } from "@/lib/types";
 import s from "./home.module.css";
 
@@ -53,6 +54,7 @@ export default function Home() {
       const { job } = await api<{ job: JobInput }>("/api/ingest", { url: url.trim() || undefined, text: paste ? text : undefined });
       setStage("writing");
       const { story } = await api<{ story: StoryResult }>("/api/story", { job }, conf);
+      prefetchVoice(story.story); // the voice starts loading while the video page opens
       const id = newId();
       saveJob({ id, createdAt: Date.now(), job, story });
       setStage("done");

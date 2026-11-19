@@ -11,6 +11,7 @@ import Practice from "@/components/Practice";
 import Transcript from "@/components/Transcript";
 import { api } from "@/lib/api";
 import { SAMPLE } from "@/lib/sample";
+import { prefetchVoice } from "@/lib/useEdgeVoice";
 import { loadJob, loadSettings, saveJob, saveSettings, type KeySettings } from "@/lib/store";
 import { timeLesson } from "@/lib/timing";
 import type { JobRecord, Lesson, Outline } from "@/lib/types";
@@ -95,6 +96,14 @@ export default function CoursePage() {
     const missing = !rec.outline || rec.outline.lessons.some((l) => !rec.lessons?.[l.id]);
     if (missing && settings.key.length >= 20) { started.current = true; build(settings); }
   }, [rec, settings, build]);
+
+  // Load the voice of the current lesson and the next written one in the background.
+  useEffect(() => {
+    if (!rec?.outline || !current) return;
+    const ids = rec.outline.lessons.map((l) => l.id), i = ids.indexOf(current);
+    const nextId = ids.slice(i + 1).find((x) => rec.lessons?.[x]);
+    if (nextId) { const t = setTimeout(() => prefetchVoice(rec.lessons![nextId]), 15000); return () => clearTimeout(t); }
+  }, [rec, current]);
 
   if (rec === undefined) return <Masthead />;
   if (rec === null) return (<><Masthead /><main className="shell" style={{ padding: "48px 0" }}><h1>Course not found on this device</h1><p><Link href="/">Start again</Link></p></main></>);

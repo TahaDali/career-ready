@@ -18,26 +18,41 @@ export interface Clip { audio: Buffer; words: Word[] }
 
 const cache = new Map<string, Clip>();
 
-// One open connection per voice, reused across requests (opening a socket per clip costs seconds).
-const pool = new Map<string, Promise<MsEdgeTTS>>();
-function client(voice: string): Promise<MsEdgeTTS> {
-  if (!pool.has(voice)) {
-    pool.set(voice, (async () => {
-      const tts = new MsEdgeTTS({ connectionTimeoutMs: 6000, synthesisTimeoutMs: 12000 });
-      await tts.setMetadata(voice, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3, { wordBoundaryEnabled: true });
-      return tts;
-    })());
-  }
-  return pool.get(voice)!;
+// Up to four open connections per voice, reused across requests: opening a socket per clip costs
+// seconds, and one shared socket makes parallel clips queue behind each other.
+type Conn = { tts: Promise<MsEdgeTTS>; busy: number };
+const pool = new Map<string, Conn[]>();
+const MAX_CONN = 4;
+function open(voice: string): Promise<MsEdgeTTS> {
+  return (async () => {
+    const tts = new MsEdgeTTS({ connectionTimeoutMs: 6000, synthesisTimeoutMs: 12000 });
+    await tts.setMetadata(voice, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3, { wordBoundaryEnabled: true });
+    return tts;
+  })();
 }
-function drop(voice: string) {
-  const p = pool.get(voice);
-  pool.delete(voice);
-  p?.then((t) => t.close()).catch(() => {});
+function acquire(voice: string): Conn {
+  const list = pool.get(voice) ?? [];
+  pool.set(voice, list);
+  let c = list.find((x) => x.busy === 0);
+  if (!c && list.length < MAX_CONN) { c = { tts: open(voice), busy: 0 }; list.push(c); }
+  c ??= list.reduce((a, b) => (b.busy < a.busy ? b : a));
+  c.busy++;
+  return c;
+}
+function drop(voice: string, c: Conn) {
+  const list = pool.get(voice);
+  if (list) pool.set(voice, list.filter((x) => x !== c));
+  c.tts.then((t) => t.close()).catch(() => {});
 }
 
 async function once(text: string, voice: string, rate: string): Promise<Clip> {
-  const tts = await client(voice);
+  const conn = acquire(voice);
+  try { return await speak(await conn.tts, text, rate); }
+  catch (e) { drop(voice, conn); throw e; }
+  finally { conn.busy--; }
+}
+
+async function speak(tts: MsEdgeTTS, text: string, rate: string): Promise<Clip> {
   const { audioStream, metadataStream } = tts.toStream(text, { rate });
   const meta: string[] = [];
   metadataStream?.on("data", (d) => meta.push(d.toString()));
@@ -79,7 +94,7 @@ export async function synthesize(text: string, voice: string, rate = "-3%"): Pro
       if (cache.size > 300) cache.delete(cache.keys().next().value!);
       cache.set(key, clip);
       return clip;
-    } catch (e) { last = e; drop(v); await new Promise((r) => setTimeout(r, 300 * (attempt + 1))); }
+    } catch (e) { last = e; await new Promise((r) => setTimeout(r, 300 * (attempt + 1))); }
   }
   throw last instanceof Error ? last : new Error("voice failed");
 }

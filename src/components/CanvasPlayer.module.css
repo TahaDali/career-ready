@@ -22,3 +22,4 @@
 }
 @media (max-width: 640px) { .bigPlay { font-size: 14px; padding: 8px 14px; bottom: 4%; } .btn { padding: 8px 10px; } }
 .progress .seg:hover { background: var(--mute); }
+.waiting { position: absolute; right: 2%; top: 3%; font: 700 12px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: #fff; background: var(--ink); padding: 8px 10px; }

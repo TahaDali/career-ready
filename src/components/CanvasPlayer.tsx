@@ -53,13 +53,20 @@ export default function CanvasPlayer({ lesson, cast, autoPlay = false, onEnd, on
   const [time, setTime] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  const { clips: allClips, ready, progress } = useEdgeVoice(lesson, voiceMode === BROWSER ? null : voiceMode);
+  const { clips: allClips, failed, ready, progress } = useEdgeVoice(lesson, voiceMode === BROWSER ? null : voiceMode);
   const preparing = !ready;
   // A scene the clock entered without its clip keeps the browser voice for this play-through, so a late
   // clip can't re-time a scene that is already playing. Scenes ahead re-time freely as clips arrive.
   const [noClip, setNoClip] = useState<Record<number, true>>({});
   const clips = useMemo(() => { const o: Record<number, VoiceClip | undefined> = {}; for (const [i, c] of Object.entries(allClips)) if (!noClip[+i]) o[+i] = c; return o; }, [allClips, noClip]);
   const timed: TimedLesson = useMemo(() => timeLesson(lesson, speed, clips), [lesson, speed, clips]);
+  // While a scene's Edge clip is still on its way, the clock waits for it instead of switching voices.
+  const rawClipsRef = useRef(allClips); rawClipsRef.current = allClips;
+  const failedRef = useRef(failed); failedRef.current = failed;
+  const noClipRef = useRef(noClip); noClipRef.current = noClip;
+  const waitSince = useRef<{ scene: number; at: number } | null>(null);
+  const [waiting, setWaiting] = useState(false);
+  const WAIT_LIMIT = 10_000;
 
   const tRef = useRef(0);
   const playingRef = useRef(false);
@@ -162,11 +169,28 @@ export default function CanvasPlayer({ lesson, cast, autoPlay = false, onEnd, on
       if (playingRef.current) {
         let t = tRef.current;
         const k = sceneAt(t), sc = timed.scenes[k], clip = clipsRef.current?.[k], a = audioRef.current;
+        const pending = (i: number) => voiceMode !== BROWSER && i < timed.scenes.length && !rawClipsRef.current[i] && !failedRef.current[i] && !noClipRef.current[i];
+        // Wait at the end of this scene (before the next transition) for the next scene's clip, or at the
+        // start of this scene after a seek. After WAIT_LIMIT the scene falls back to the browser voice.
+        const waitFor = pending(k) && t < sc.speechStart ? k : pending(k + 1) && t >= timed.scenes[k + 1].start - HOLD_BEFORE_END ? k + 1 : -1;
+        if (waitFor >= 0) {
+          if (waitSince.current?.scene !== waitFor) waitSince.current = { scene: waitFor, at: now };
+          if (now - waitSince.current.at < WAIT_LIMIT) {
+            if (!waiting && now - waitSince.current.at > 400) setWaiting(true);
+            if (waitFor !== k) tRef.current = Math.min(t, timed.scenes[waitFor].start - HOLD_BEFORE_END);
+            draw(tRef.current);
+            return;
+          }
+          noClipRef.current = { ...noClipRef.current, [waitFor]: true };
+          setNoClip((x) => ({ ...x, [waitFor]: true }));
+        }
+        waitSince.current = null;
+        if (waiting) setWaiting(false);
         if (k !== lastScene.current) {
           lastScene.current = k; holdSince.current = null;
           onSceneChange?.(k);
           if (audioScene.current !== k) { a?.pause(); audioScene.current = -1; }
-          if (!clip && spokenScene.current !== k) { speakBrowser(k); if (voiceMode !== BROWSER) setNoClip((x) => ({ ...x, [k]: true })); }
+          if (!clip && spokenScene.current !== k) speakBrowser(k);
         }
         if (clip && a) {
           // Start this scene's clip at the right offset (also after a pause or a seek).
@@ -203,7 +227,7 @@ export default function CanvasPlayer({ lesson, cast, autoPlay = false, onEnd, on
     // A hidden tab gets no animation frames, but the narration keeps playing: keep the clock moving.
     const iv = setInterval(() => { if (document.hidden) step(performance.now()); }, 200);
     return () => { cancelAnimationFrame(raf); clearInterval(iv); };
-  }, [loaded, timed, sceneAt, draw, speakBrowser, onEnd, onSceneChange, speed, voiceMode]);
+  }, [loaded, timed, sceneAt, draw, speakBrowser, onEnd, onSceneChange, speed, voiceMode, waiting]);
 
   const play = useCallback(() => {
     if (preparing) return;
@@ -262,6 +286,7 @@ export default function CanvasPlayer({ lesson, cast, autoPlay = false, onEnd, on
           </button>
         )}
         {captions && scene && time > 0.05 && <div className={styles.caption} aria-live="off">{caption}</div>}
+        {playing && waiting && <div className={styles.waiting} role="status">Loading the voice…</div>}
       </div>
       <div className={styles.controls}>
         <button onClick={toggle} className={styles.btn} aria-label={playing ? "Pause" : "Play"} disabled={preparing}>{playing ? "❚❚ Pause" : "▶ Play"}</button>
