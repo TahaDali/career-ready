@@ -55,6 +55,7 @@ async function viaClaude<T extends z.ZodType>(o: GenerateOptions<T>): Promise<z.
     if (e instanceof Anthropic.PermissionDeniedError) throw new AIError("This key can't use that model. Try another model.", 403);
     if (e instanceof Anthropic.RateLimitError) throw new AIError("Your key hit its rate limit. Wait a minute and try again.", 429);
     if (e instanceof Anthropic.BadRequestError && /grammar|schema|too complex|too large|optional param|union/i.test(e.message)) {
+      console.warn("[ai] structured outputs refused this schema; using the JSON fallback:", e.message.slice(0, 160));
       // Structured outputs refused this schema: ask for the same JSON as plain text and validate it here.
       refused.add(o.schema);
       try { return await claudeJSON(client, model, o); }
@@ -69,6 +70,8 @@ async function viaClaude<T extends z.ZodType>(o: GenerateOptions<T>): Promise<z.
 // Schemas the API refused to compile, so later calls skip the doomed structured-output attempt.
 const refused = new WeakSet<z.ZodType>();
 
+const isObject = (x: unknown): x is Record<string, unknown> => !!x && typeof x === "object" && !Array.isArray(x);
+
 function extractJSON(text: string): unknown {
   const t = text.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "");
   const a = t.indexOf("{"), b = t.lastIndexOf("}");
@@ -81,7 +84,7 @@ function extractJSON(text: string): unknown {
 async function claudeJSON<T extends z.ZodType>(client: Anthropic, model: string, o: GenerateOptions<T>): Promise<z.infer<T>> {
   const schema = JSON.stringify(z.toJSONSchema(o.schema, { target: "draft-7" }));
   const system = `${o.system}\n\n---\n\n## Output format\nReply with ONLY one JSON object, no prose and no code fences, that validates against this JSON Schema. Fill every field.\n${schema}`;
-  let user = o.user, lastProblem = "";
+  let user = o.user, lastProblem = "", lastJson: unknown = null;
   for (let attempt = 0; attempt < 2; attempt++) {
     const res = await client.messages.create({
       model, max_tokens: o.maxTokens ?? 16000,
@@ -97,8 +100,13 @@ async function claudeJSON<T extends z.ZodType>(client: Anthropic, model: string,
     const parsed = o.schema.safeParse(json);
     if (parsed.success) return parsed.data;
     lastProblem = parsed.error.issues.slice(0, 8).map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
-    user = `${o.user}\n\n(Your previous JSON had these problems: ${lastProblem}. Reply with the corrected, complete JSON object only.)`;
+    console.warn("[ai] JSON fallback: answer did not match the schema:", lastProblem);
+    // Near-valid JSON is still useful: the route's repair step fills every missing field.
+    // Near-valid JSON is kept rather than paying for a second full answer: the route's repair step
+    // fills every missing field. Only a reply that isn't a JSON object at all is asked for again.
+    if (isObject(json)) { lastJson = json; break; }
   }
+  if (isObject(lastJson)) return lastJson as z.infer<T>;
   throw new AIError("Claude's answer was missing some parts. Please try again.", 502);
 }
 
