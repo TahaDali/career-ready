@@ -17,7 +17,14 @@ record: this repository was created that morning, and every commit after it is f
 | 11:47 | Near-valid AI answers are repaired, not rejected |
 | 11:57 | Never mix narrator voices |
 | 12:09 | Layout faults fixed after a frame-by-frame audit of real videos |
-| … | Later commits: build log, deploy, final fixes |
+| 12:14 | This build log |
+| 12:25 | Live on Vercel (https://career-ready-sand.vercel.app); demo link in the README |
+| 12:40 | Engine fixes found while writing the sample course: Part VI opener, 5-step lists clear the captions, wider organization labels |
+| 12:40 | Hand-written 10-lesson sample course, playable with no key |
+| 12:47 | Landing page, `/make`, privacy and terms pages |
+| 13:05 | Simpler landing page |
+| 13:26 | Design pass: every scene of the 11 sample videos reviewed; one-minute sample rewritten; record and opener fixes; dev contact sheet |
+| 15:00 | Dev frame renderer used to make the 90-second demo video; this timeline update |
 
 Run `git log --stat` to see every change with its time and files.
 
@@ -53,10 +60,14 @@ The engine's `LICENSE` and `NOTICE` are kept in `src/engine/`. To compare, see
 | Data contract and repair of AI output | `src/lib/schemas.ts`, `src/lib/validate.ts` | 244 |
 | Job ingest (Greenhouse, Lever, schema.org, page text) | `src/lib/ingest.ts`, `src/app/api/ingest` | 100 |
 | Prompts assembled from the method notes | `src/lib/prompts.ts`, `scripts/build-prompts.mjs` | 61 |
-| Landing page, job page and brief, 10-lesson course page, about page | `src/app/**/page.tsx`, components | about 700 |
-| Frame-by-frame layout audit (dev tool) | `src/app/dev/audit` | 67 |
+| Job page and brief, 10-lesson course page, about page | `src/app/job/**`, `src/app/about`, components | about 600 |
+| Landing page, `/make` form, privacy and terms pages, site navigation and footer | `src/app/page.tsx`, `src/app/make`, `src/app/privacy`, `src/app/terms`, `src/components/SiteFooter.tsx` | about 400 |
+| Sample job and hand-written 10-lesson sample course (no key needed) | `src/lib/sample.ts`, `src/lib/sample-course.ts` | about 680 |
+| Dev tools: frame-by-frame layout audit, engine scrubber, scene contact sheet, 1080p frame renderer for the demo video | `src/app/dev/*` | about 280 |
 
-About **2,800 lines written today**, against about **2,150 lines reused** from our own earlier engine.
+About **4,000 lines written today**, against about **2,150 lines reused** from our own earlier engine.
+
+Also made today, outside the repository: the 90-second demo video (rendered from a real AI-made job with the dev frame renderer), the slide deck and the one-page summary.
 
 ## Tools
 
